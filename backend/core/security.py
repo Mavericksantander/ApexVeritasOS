@@ -1,6 +1,6 @@
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
@@ -38,8 +38,8 @@ def enforce_rate_limit(agent_id: str) -> None:
 def create_access_token(
     data: dict[str, Any],
     *,
-    expires_minutes: int | None = None,
-    expires_seconds: int | None = None,
+    expires_minutes: Optional[int] = None,
+    expires_seconds: Optional[int] = None,
 ) -> str:
     to_encode = data.copy()
     if expires_seconds is None:

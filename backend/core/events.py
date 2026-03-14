@@ -48,7 +48,7 @@ class EventBroker:
                 q.put_nowait(msg)
             except queue.Full:
                 dropped += 1
-        logger.info("events.publish", event=event, dropped=dropped)
+        logger.info("events.publish", event_type=event, dropped=dropped)
 
 
 broker = EventBroker()
@@ -69,4 +69,3 @@ def sse_stream(q: queue.Queue[EventMessage], *, keepalive_seconds: int = 15) -> 
                 yield b": keep-alive\n\n"
     finally:
         broker.unsubscribe(q)
-

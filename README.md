@@ -1,165 +1,187 @@
-<<<<<<< HEAD
-# fantastic-octo-potato
-=======
-# ApexVeritasOS (AVOS) MVP 
+# ApexVeritasOS (AVOS) MVP
 
-A governance platform for autonomous AI agents that provides identity, logging, and safety controls while being easy to spin up locally.
+Plataforma de gobernanza para agentes autónomos: identidad, autenticación por JWT, logging de tareas, reputación y controles de seguridad (firewall/policies), con un dashboard HTML/JS simple.
 
 ## Stack
-- FastAPI backend with SQLite (craft to swap with PostgreSQL via `DATABASE_URL`).
-- Python Agent SDK for interacting with the platform.
-- Firewall middleware to intercept shell actions.
-- Simple HTML/JS dashboard querying FastAPI.
+- **Backend**: FastAPI + SQLAlchemy 2.0
+- **DB**: SQLite por defecto (`avos.db`), compatible con Postgres vía `DATABASE_URL`
+- **Auth**: JWT (firmado con `SECRET_KEY`) + token de sesión temporal via `/auth/token`
+- **Migrations**: Alembic (`migrations/`)
+- **SDK**: `sdk/avos_agent.py` (Python)
+- **Dashboard**: `dashboard/index.html` + `dashboard/app.js` (vanilla, polling a `/dashboard/summary`, opcional SSE)
+- **Logging**: `structlog`
 
-## Quick start
+## Quick start (local)
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn main:app --reload
+uvicorn backend.main:app --reload
 ```
-The server launches on `http://127.0.0.1:8000` and creates `avos.db` (SQLite).
 
-## Registering a test agent
-1. Use the SDK to register an agent and receive a JWT for future calls:
-    ```python
-    from sdk.avos_agent import AVOSAgent
+Backend en `http://127.0.0.1:8000`.
 
-    agent = AVOSAgent("research_bot", capabilities=["web_research", "data_ingest"])
-    agent.register_agent()
-    print(agent.access_token)
-    ```
-2. Store the returned `access_token` and send it as `Authorization: Bearer <token>` on subsequent requests (the `public_key` is only returned for audit).
+## Variables de entorno
+Puedes crear un `.env` (ver `backend/core/config.py`):
+- `DATABASE_URL` (ej: `postgresql://user:pass@localhost/avos`)
+- `SECRET_KEY` (JWT)
+- `AVOS_RATE_LIMIT` / `AVOS_RATE_WINDOW`
+- `DEBUG`, `ENVIRONMENT`, `CORS_ORIGINS`
 
-## Logging a task & reputation
+## SDK (Python)
+### Instalación (pip)
+Si quieres que otros devs lo instalen desde su terminal como un paquete:
+
+- **Desde este repo (editable)**:
+```bash
+cd /Users/josesantander/avos/Avos
+source .venv/bin/activate
+pip install -e .
+```
+
+- **Build + wheel** (para distribuir internamente):
+```bash
+cd /Users/josesantander/avos/Avos
+python3 -m pip install build
+python3 -m build
+python3 -m pip install dist/*.whl
+```
+
+Import recomendado:
 ```python
-agent.log_task("web research", result_status="success", execution_time=3.2)
+from avos_sdk import AVOSAgent
 ```
-Every successful task bumps the reputation score by `0.5`, failures subtract `1.0`, and the updated score is returned.
 
-## Authorization testing
-Ask the platform whether an agent may perform a risky action using the JWT token:
+Compatibilidad (legacy):
 ```python
-decision = agent.authorize_action("execute_shell_command", {"command": "rm -rf /tmp/test"})
-print(decision)
+from sdk.avos_agent import AVOSAgent
 ```
-The API enforces rules such as blocking destructive shell commands, denying edits under `/etc`, requiring verification for large spending, and logging every authorization attempt.
 
-## Action firewall demo
-Incorporate the firewall module to block dangerous shell requests before they reach your agent framework:
+Ejemplo mínimo:
 ```python
-from firewall.action_firewall import ActionFirewall
-firewall = ActionFirewall(agent)
-firewall.execute_shell_command("rm -rf /tmp/sensitive")
+from sdk.avos_agent import AVOSAgent
+
+agent = AVOSAgent("research_bot", owner_id="local", capabilities=["web_research", {"name": "admin"}])
+agent.register_agent()     # obtiene agent_id + public_key (secreto) + token
+agent.fetch_token()        # (recomendado) emite token temporal /auth/token
+
+agent.send_heartbeat(model="gpt", version="1.0")
+agent.log_task("web research", result_status="success", execution_time=2.3)
+agent.authorize_action("execute_shell_command", {"command": "ls -la"})
 ```
-If the backend denies the action, the firewall returns `status: blocked` and the command is not executed.
+
+Notas:
+- `capabilities` acepta **legacy** `list[str]` o **estructurado** `list[{name, version}]`.
+- `log_task` envía `signature` automáticamente (por defecto: HMAC-SHA256 usando `public_key` como secreto).
+
+## Auth: token temporal (JWT)
+El token recomendado es el de sesión temporal:
+- `POST /auth/token`
+  - Body: `{"agent_id": "...", "public_key": "...", "expires_in": 3600}`
+  - Respuesta: `{"access_token": "...", "expires_in": 3600}`
+
+Todas las rutas protegidas aceptan `Authorization: Bearer <access_token>`.
+
+## Identidad verificable (MVP)
+- `GET /agents/{agent_id}/identity` (JWT requerido, solo “self”)
+
+Respuesta:
+```json
+{
+  "agent_id": "…",
+  "developer_id": "…",
+  "public_key": "…",
+  "capabilities": ["…"],
+  "created_at": "2026-03-14T00:00:00Z",
+  "reputation": 1.5,
+  "verified": true
+}
+```
+
+## Registro y discovery
+- `POST /register_agent` (dev/local)
+- `POST /external/register_agent` (invite-protected)
+- `GET /agents/public` (requiere JWT)
+- `GET /agents/search?capability=<cap>&min_reputation=<score>` (requiere JWT; filtra por `capability.name`)
+- `GET /agents/active` (requiere JWT; `last_heartbeat_at` en últimos 5 min)
+
+## Heartbeat
+- `POST /agents/{agent_id}/heartbeat` (JWT requerido, solo “self”)
+
+## Logging de tareas, reputación y firma
+Endpoints:
+- `POST /log_task` (JWT requerido)
+- `POST /agent/{agent_id}/log_task` (alias compatible) (JWT requerido)
+
+Body (nuevo, compatible):
+```json
+{
+  "agent_id": "...",
+  "task_description": "…",
+  "result_status": "success",
+  "execution_time": 0.5,
+  "signature": "… (opcional)"
+}
+```
+
+Si `signature` está presente y es inválida:
+- se rechaza el log (`403`)
+- se aplica penalización de reputación (delta `-1.0`)
+
+## SSE (eventos en tiempo real)
+- `GET /events` (Server-Sent Events)
+
+Eventos emitidos (in-memory, single-process):
+- `agent_registered`
+- `task_completed`
+- `reputation_updated`
+
+Ejemplo (browser):
+```js
+const es = new EventSource("http://127.0.0.1:8000/events");
+es.addEventListener("reputation_updated", (ev) => console.log(JSON.parse(ev.data)));
+```
+
+## Policy engine (configurable)
+Tabla `policies` + evaluación previa al firewall hardcodeado.
+
+Endpoints:
+- `GET /policies` (JWT requerido)
+- `POST /policies` (JWT requerido + capability `admin`)
+
+Body ejemplo:
+```json
+{"name":"deny_rm_rf","pattern":"rm -rf","action":"deny","severity":10}
+```
+
+`pattern` soporta match simple (substring) o regex (`/expr/` o `re:expr`).
+
+## Firewall /authorize_action
+- `POST /authorize_action` (JWT requerido)
+
+La decisión se calcula así:
+1) Policies dinámicas (DB) si hay match  
+2) Reglas hardcodeadas (`firewall/action_firewall.py`) si no hay match  
+
+Todas las decisiones se loguean en `authorization_logs`.
 
 ## Dashboard
-Open `dashboard/index.html` in a browser (or serve it via any static server). It visualizes:
-- Registered agents with reputation
-- Recent tasks
-- Reputation snapshots
-- Blocked actions logged by the authorization API
-
-It fetches data from `GET /dashboard/summary`, which aggregates agents, tasks, and denied authorizations.
-
-## Environment overrides
-Copy `.env.example` to `.env` and set the secrets/overrides you need:
-- `DATABASE_URL` to point to PostgreSQL (e.g., `postgresql://user:pass@localhost/avos`).
-- `AVOS_RATE_LIMIT`/`AVOS_RATE_WINDOW` for rate-limiting.
-- `SECRET_KEY` for future JWT usage (required by `backend/core/config.py`).
-- `DEBUG`, `ENVIRONMENT`, and `CORS_ORIGINS` as needed for your deployment.
-
-## Additional APIs
-- **Heartbeat:** `POST /agents/{agent_id}/heartbeat` lets agents report their status and metadata.
-- **Public directory:** `GET /agents/public` lists agents with reputation and capabilities for discovery.
-- **Search:** `GET /agents/search?capability=<cap>&min_reputation=<score>` filters agents by capability and score.
-- **Metrics:** `GET /metrics/blocked_actions` returns how many actions have been denied to date.
-
-## OpenClaw integration & exposure
-1. Run the API on all interfaces and expose it externally:
-   ```bash
-   uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
-   ngrok http 8000  # optional: share the generated https://*.ngrok.io URL with OpenClaw
-   ```
-2. OpenClaw bots call `/external/register_agent` to onboard. Include `developer_id`, `bot_name`, `capabilities`, and the shared `invite_code` (e.g. `AVOS-OPEN-2026`).
-3. Store the returned `agent_id`/`access_token` and send it as `Authorization: Bearer <token>` for every follow-up request.
-
-### OpenClaw sample payloads
-```jsonc
-// 1. Register the agent
-POST /external/register_agent
-Content-Type: application/json
-
-{
-  "developer_id": "openclaw_team",
-  "bot_name": "openclaw_scout",
-  "capabilities": ["web_scraping", "decisioning"],
-  "invite_code": "AVOS-OPEN-2026"
-}
-
-// 2. Log a completed task after registration
-POST /agent/{agent_id}/log_task
-Authorization: Bearer <access_token>
-Content-Type: application/json
-
-{
-  "agent_id": "<agent_id>",
-  "task_description": "Harvest market data",
-  "result_status": "success",
-  "execution_time": 2.8
-}
-
-// 3. Request authorization before a risky command
-POST /authorize_action
-Authorization: Bearer <access_token>
-Content-Type: application/json
-
-{
-  "agent_id": "<agent_id>",
-  "action_type": "execute_shell_command",
-  "action_payload": {"command": "rm -rf /tmp/reports"}
-}
-```
-OpenClaw skill/webhook should send these requests sequentially, honoring `Authorization: Bearer <access_token>`.
-
-## Simulation helper
-Run `scripts/simulate_agents.py` to register a few agents, push heartbeat updates, log tasks, and trigger blocked shell commands so you can see the dashboard and logs populate quickly.
-
-## Containerization
-Build the Docker image:
-```bash
-docker build -t avos-app .
-```
-Run it:
-```bash
-docker run --env-file .env --publish 8000:8000 avos-app
-```
-Or start the stack with Compose (includes PostgreSQL):
-```bash
-docker compose up --build
-```
-
-## Observabilidad
-Los logs ahora se formatean con `structlog` y cada petición recibe `request_id`, `agent_id`, `reputation_delta` y contexto de seguridad. Las excepciones HTTP/Validation quedan anotadas con nivel warning/error.
-
-## Firewall middleware
-Las solicitudes a `/authorize_action` ahora pasan por un middleware que bloquea comandos con `rm -rf`, `sudo` o accesos a `/etc`, `/root`, `/var/www`, registra la decisión con nivel de severidad y exige verificación adicional para gastos mayores a $10.
+Abrir `dashboard/index.html` en un browser (o servirlo estático). Hace polling a:
+- `GET /dashboard/summary`
 
 ## Tests
-Run the test suite and collect coverage:
 ```bash
 pytest --cov=backend
 ```
 
-## Migrations
-The project now runs with SQLAlchemy 2.0 and Alembic. After installing requirements and copying `.env.example` to `.env`, initialize the schema with:
+## Migrations (Alembic)
+Para aplicar migrations:
 ```bash
 alembic upgrade head
 ```
-To capture schema changes, run `alembic revision --autogenerate -m "describe change"` before upgrading. The local `migrations/` directory is configured to read `DATABASE_URL` from your `.env`, so the same commands work against SQLite and PostgreSQL.
 
-## Next steps
-- Wire the firewall into OpenClaw or other agent runners (use `ActionFirewall` in your execution pipeline).
-- Swap SQLite for PostgreSQL in production by setting `DATABASE_URL` and running migrations.
-- Extend the dashboard with authentication and richer analytics.
+Para generar nuevas:
+```bash
+alembic revision --autogenerate -m "describe change"
+alembic upgrade head
+```

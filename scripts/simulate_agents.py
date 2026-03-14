@@ -9,7 +9,7 @@ if ROOT not in sys.path:
 
 from sdk.avos_agent import AVOSAgent
 
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = os.environ.get("AVOS_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 
 
 def _send_heartbeat(agent: AVOSAgent, status: str = "active") -> None:
