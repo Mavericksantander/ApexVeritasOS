@@ -1,10 +1,13 @@
 from datetime import datetime
 from uuid import uuid4
+import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from ..core.rate_limiter import limiter, rate_limit_str
+from ..core.security import create_access_token, pwd_context
 from ..database import get_db
 from ..models import Agent
 
@@ -23,10 +26,13 @@ class ExternalRegisterRequest(BaseModel):
 class ExternalRegisterResponse(BaseModel):
     agent_id: str
     public_key: str
+    access_token: str
+    token_type: str = "bearer"
     registered_at: datetime
 
 
 @router.post("/external/register_agent", response_model=ExternalRegisterResponse)
+@limiter.limit(rate_limit_str)
 def external_register_agent(
     payload: ExternalRegisterRequest,
     db: Session = Depends(get_db),
@@ -41,18 +47,21 @@ def external_register_agent(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid invite code",
         )
+    public_key_value = secrets.token_urlsafe(32)
     agent = Agent(
         agent_id=str(uuid4()),
         name=payload.bot_name,
         owner_id=payload.developer_id,
         capabilities=payload.capabilities,
-        public_key=Agent.generate_public_key(),
+        public_key=pwd_context.hash(public_key_value),
     )
     db.add(agent)
     db.commit()
     db.refresh(agent)
+    token = create_access_token({"agent_id": agent.agent_id})
     return ExternalRegisterResponse(
         agent_id=agent.agent_id,
-        public_key=agent.public_key,
+        public_key=public_key_value,
+        access_token=token,
         registered_at=agent.registered_at,
     )

@@ -4,3 +4,14 @@ sqlalchemy
 pydantic
 python-dotenv
 requests
+pydantic-settings
+python-jose[cryptography]
+passlib[bcrypt]
+slowapi
+sqlalchemy[asyncio]
+alembic
+pytest
+pytest-asyncio
+httpx
+pytest-cov
+structlog

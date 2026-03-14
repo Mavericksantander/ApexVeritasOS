@@ -3,7 +3,7 @@ import secrets
 
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.types import JSON
-from .database import Base
+from .base import Base
 
 
 class Agent(Base):
@@ -55,6 +55,7 @@ class AuthorizationLog(Base):
     decision = Column(String, nullable=False)
     reason = Column(Text)
     blocked_reason = Column(Text, nullable=True)
+    severity = Column(String, nullable=False, server_default="low")
     timestamp = Column(DateTime, default=datetime.utcnow)
 
 

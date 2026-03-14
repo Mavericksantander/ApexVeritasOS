@@ -3,8 +3,6 @@ import random
 import sys
 import time
 
-import requests
-
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
@@ -15,13 +13,11 @@ BASE_URL = "http://127.0.0.1:8000"
 
 
 def _send_heartbeat(agent: AVOSAgent, status: str = "active") -> None:
-    if not agent.agent_id or not agent.public_key:
+    if not agent.access_token:
         return
-    headers = {"X-API-Key": agent.public_key}
-    payload = {"agent_id": agent.agent_id, "model": "gpt-4", "version": "0.1.0", "status": status}
     try:
-        requests.post(f"{BASE_URL}/agents/{agent.agent_id}/heartbeat", headers=headers, json=payload)
-    except requests.RequestException as exc:
+        agent.send_heartbeat(status=status)
+    except Exception as exc:
         print("Heartbeat failed", exc)
 
 

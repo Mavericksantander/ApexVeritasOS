@@ -1,8 +1,13 @@
 import logging
 
-from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
+from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.middleware import SlowAPIMiddleware
+from uuid import uuid4
 
 from .database import init_db
 from .routes import agents as agent_routes
@@ -13,18 +18,72 @@ from .routes import metrics as metrics_routes
 from .routes import reputation as reputation_routes
 from .routes import search as search_routes
 from .routes import tasks as task_routes
+from .core.config import settings
+from .core.logging import bind_request, configure_logging, reset_context
+from .core.rate_limiter import limiter
+from .middleware.firewall_middleware import FirewallMiddleware
 
-load_dotenv()
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG if settings.DEBUG else logging.INFO)
+
+logger = configure_logging()
 
 app = FastAPI(title="ApexVeritasOS Governance API")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
+app.add_exception_handler(429, _rate_limit_exceeded_handler)
+app.add_middleware(FirewallMiddleware)
+
+
+@app.middleware("http")
+async def logging_middleware(request: Request, call_next):
+    request_id = str(uuid4())
+    bind_request(request_id=request_id)
+    logger.info("request.start", method=request.method, path=str(request.url.path))
+    response = await call_next(request)
+    logger.info("request.end", status_code=response.status_code)
+    reset_context()
+    return response
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    logger.warning("http.error", status_code=exc.status_code, detail=exc.detail)
+    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.error("validation.error", errors=exc.errors())
+    return JSONResponse({"detail": exc.errors()}, status_code=422)
+
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    openapi_schema = get_openapi(
+        title=app.title,
+        version="0.1.0",
+        description="Governance API for ApexVeritasOS",
+        routes=app.routes,
+    )
+    openapi_schema["components"]["securitySchemes"] = {
+        "bearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+        }
+    }
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
 
 app.include_router(agent_routes.router)
 app.include_router(task_routes.router)

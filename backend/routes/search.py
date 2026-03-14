@@ -3,14 +3,17 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from ..core.rate_limiter import limiter, rate_limit_str
 from ..database import get_db
 from ..models import Agent
+from ..core.security import get_current_agent
 
 router = APIRouter()
 
 
 @router.get("/agents/public")
-def public_agents(db: Session = Depends(get_db)):
+@limiter.limit(rate_limit_str)
+def public_agents(db: Session = Depends(get_db), _: Agent = Depends(get_current_agent)):
     """Return public metadata for agents so developers can discover reliable collaborators."""
     agents = (
         db.query(
@@ -36,10 +39,12 @@ def public_agents(db: Session = Depends(get_db)):
 
 
 @router.get("/agents/search")
+@limiter.limit(rate_limit_str)
 def search_agents(
     capability: Optional[str] = Query(None, description="Filter agents that advertise the capability"),
     min_reputation: float = Query(0, ge=0, description="Minimum reputation score"),
     db: Session = Depends(get_db),
+    _: Agent = Depends(get_current_agent),
 ):
     """Find agents whose capabilities and reputation match the provided filters."""
     query = db.query(Agent).filter(Agent.reputation_score >= min_reputation)

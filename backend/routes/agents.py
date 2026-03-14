@@ -6,9 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from ..core.rate_limiter import limiter, rate_limit_str
+from ..core.security import create_access_token, get_current_agent, pwd_context
 from ..database import get_db
 from ..models import Agent
-from .deps import get_current_agent, verify_owner
+from .deps import verify_owner
 
 router = APIRouter()
 
@@ -22,6 +24,8 @@ class RegisterAgentRequest(BaseModel):
 class RegisterAgentResponse(BaseModel):
     agent_id: str
     public_key: str
+    access_token: str
+    token_type: str = "bearer"
     registration_timestamp: datetime
 
 
@@ -35,27 +39,31 @@ class AgentInfoResponse(BaseModel):
 
 
 @router.post("/register_agent", response_model=RegisterAgentResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit(rate_limit_str)
 def register_agent(payload: RegisterAgentRequest, db: Session = Depends(get_db)):
     agent_id = str(uuid4())
-    public_key = secrets.token_urlsafe(32)
+    public_key_value = secrets.token_urlsafe(32)
     agent = Agent(
         agent_id=agent_id,
         name=payload.agent_name,
         owner_id=payload.owner_id,
         capabilities=payload.capabilities,
-        public_key=public_key,
+        public_key=pwd_context.hash(public_key_value),
     )
     db.add(agent)
     db.commit()
     db.refresh(agent)
+    token = create_access_token({"agent_id": agent.agent_id})
     return RegisterAgentResponse(
         agent_id=agent.agent_id,
-        public_key=agent.public_key,
+        public_key=public_key_value,
+        access_token=token,
         registration_timestamp=agent.registered_at,
     )
 
 
 @router.get("/agent/{agent_id}", response_model=AgentInfoResponse)
+@limiter.limit(rate_limit_str)
 def get_agent(agent_id: str, db: Session = Depends(get_db), _: Agent = Depends(verify_owner)):
     agent = db.query(Agent).filter(Agent.agent_id == agent_id).first()
     if not agent:
@@ -71,6 +79,7 @@ def get_agent(agent_id: str, db: Session = Depends(get_db), _: Agent = Depends(v
 
 
 @router.get("/agents")
+@limiter.limit(rate_limit_str)
 def list_agents(db: Session = Depends(get_db), _: Agent = Depends(get_current_agent)):
     agents = db.query(Agent).order_by(Agent.registered_at.desc()).limit(50).all()
     return [

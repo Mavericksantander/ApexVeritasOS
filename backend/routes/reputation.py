@@ -4,9 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from ..core.rate_limiter import limiter, rate_limit_str
 from ..database import get_db
 from ..models import Agent, AgentReputation
-from .deps import get_current_agent
+from ..core.security import get_current_agent
 
 router = APIRouter()
 
@@ -24,6 +25,7 @@ class ReputationHistoryItem(BaseModel):
 
 
 @router.post("/update_reputation")
+@limiter.limit(rate_limit_str)
 def update_reputation(payload: ReputationUpdateRequest, db: Session = Depends(get_db), current_agent: Agent = Depends(get_current_agent)):
     if payload.agent_id != current_agent.agent_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Agent mismatch")
@@ -36,6 +38,7 @@ def update_reputation(payload: ReputationUpdateRequest, db: Session = Depends(ge
 
 
 @router.get("/reputation/history", response_model=List[ReputationHistoryItem])
+@limiter.limit(rate_limit_str)
 def reputation_history(db: Session = Depends(get_db), current_agent: Agent = Depends(get_current_agent)):
     rows = (
         db.query(AgentReputation)

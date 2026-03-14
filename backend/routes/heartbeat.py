@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from ..core.rate_limiter import limiter, rate_limit_str
 from ..database import get_db
 from ..models import Agent, AgentHeartbeat
 from .deps import verify_owner
@@ -20,6 +21,7 @@ class HeartbeatRequest(BaseModel):
 
 
 @router.post("/agents/{agent_id}/heartbeat", status_code=status.HTTP_202_ACCEPTED)
+@limiter.limit(rate_limit_str)
 def record_heartbeat(
     agent_id: str,
     payload: HeartbeatRequest,

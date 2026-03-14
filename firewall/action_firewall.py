@@ -1,59 +1,53 @@
-import subprocess
-from typing import Any
+from typing import Any, Dict, Tuple
 
-from sdk.avos_agent import AVOSAgent
-
-
-RISKY_PATTERNS = [
-    "rm -rf",
-    "sudo",
-    "chmod",
-    "chown",
-    "dd",
-    "mkfs",
-    "systemctl",
-    "reboot",
-    "shutdown",
-    "/etc",
-    "/usr/bin",
-]
+BLOCKED_PATTERNS = ["rm -rf", "sudo", "/etc", "/root", "/var/www"]
+HIGH_RISK_COMMANDS = ["chmod", "chown", "dd", "mkfs"]
+HIGH_SPEND_THRESHOLD = 10.0
 
 
-def _detect_risky_command(command: str) -> list[str]:
-    lowered = command.lower()
-    matches: list[str] = []
-    for pattern in RISKY_PATTERNS:
-        if pattern in lowered:
-            matches.append(pattern)
-    return matches
+def evaluate_action(action_type: str, payload: Dict[str, Any]) -> Tuple[str, str, str]:
+    payload = payload or {}
+    decision = "allow"
+    reason = "Action classified as safe"
+    severity = "low"
 
-
-def _safe_run(command: str) -> dict[str, Any]:
-    result = subprocess.run(command, shell=True, capture_output=True, text=True)
-    return {
-        "returncode": result.returncode,
-        "stdout": result.stdout,
-        "stderr": result.stderr,
-    }
+    if action_type == "execute_shell_command":
+        command = str(payload.get("command", "")).lower()
+        if any(pattern in command for pattern in BLOCKED_PATTERNS):
+            return "deny", "Destructive command detected", "critical"
+        if any(pattern in command for pattern in HIGH_RISK_COMMANDS):
+            return "require_verification", "Privileged command needs approval", "high"
+        if payload.get("requires_root"):
+            return "require_verification", "Root-level command needs extra confirmation", "high"
+    elif action_type == "spend_money":
+        amount = float(payload.get("amount", 0))
+        if amount > HIGH_SPEND_THRESHOLD:
+            return "require_verification", "Spending exceeds allowed threshold", "high"
+        severity = "medium"
+    elif action_type == "modify_file":
+        target = payload.get("path", "")
+        if target.startswith("/etc") or target.startswith("/usr/bin"):
+            return "deny", "Changing critical system files is blocked", "critical"
+    elif action_type == "call_external_api":
+        domain = payload.get("domain", "")
+        if not domain or domain.endswith(".internal"):
+            return "deny", "External API target is not approved", "critical"
+    return decision, reason, severity
 
 
 class ActionFirewall:
-    def __init__(self, agent: AVOSAgent):
+    def __init__(self, agent: Any):
         self.agent = agent
 
-    def execute_shell_command(self, command: str) -> dict[str, Any]:
-        """Check for risky commands, call the governance API, and block denied actions."""
-        risk_factors = _detect_risky_command(command)
-        payload: dict[str, Any] = {"command": command}
-        if risk_factors:
-            payload["risk_factors"] = risk_factors
-            payload["requires_root"] = "sudo" in command.lower()
-        decision = self.agent.authorize_action("execute_shell_command", payload)
-        if decision.get("decision") != "allow":
-            return {
-                "status": "blocked",
-                "decision": decision.get("decision"),
-                "reason": decision.get("reason"),
-                "risk_factors": risk_factors,
-            }
-        return {"status": "executed", **_safe_run(command)}
+    def execute_shell_command(self, command: str) -> Dict[str, Any]:
+        decision, reason, severity = evaluate_action("execute_shell_command", {"command": command})
+        if decision != "allow":
+            return {"status": "blocked", "decision": decision, "reason": reason, "severity": severity}
+        result = self._safe_run(command)
+        return {"status": "executed", "severity": severity, **result}
+
+    def _safe_run(self, command: str) -> Dict[str, Any]:
+        import subprocess
+
+        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+        return {"returncode": result.returncode, "stdout": result.stdout, "stderr": result.stderr}

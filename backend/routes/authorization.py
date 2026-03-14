@@ -6,15 +6,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from ..core.rate_limiter import limiter, rate_limit_str
 from ..database import get_db
 from ..models import Agent, AgentTask, AuthorizationLog
-from .deps import get_current_agent
+from ..core.security import get_current_agent
+from firewall.action_firewall import evaluate_action
 
 router = APIRouter()
-
-BLOCKED_COMMANDS = ["rm -rf", "mkfs", "dd if=", "shutdown", "reboot", ":/", "sudo"]
-SPEND_THRESHOLD = float(1000)
-
 
 class AuthorizationRequest(BaseModel):
     agent_id: str
@@ -27,32 +25,9 @@ class AuthorizationResponse(BaseModel):
     reason: str
 
 
-def _evaluate_action(action_type: str, payload: Dict[str, Any]) -> Tuple[str, str]:
-    payload = payload or {}
-    decision = "allow"
-    reason = ""
-    if action_type == "execute_shell_command":
-        command = str(payload.get("command", "")).lower()
-        if any(phrase in command for phrase in BLOCKED_COMMANDS) or "rm -rf" in command:
-            return "deny", "Destructive command detected"
-        if payload.get("requires_root"):
-            return "require_verification", "Root-level command needs extra confirmation"
-    if action_type == "modify_file":
-        target = payload.get("path", "")
-        if target.startswith("/etc") or target.startswith("/usr/bin"):
-            return "deny", "Changing critical system files is blocked"
-    if action_type == "call_external_api":
-        domain = payload.get("domain", "")
-        if not domain or domain.endswith(".internal"):
-            return "deny", "External API target is not approved"
-    if action_type == "spend_money":
-        amount = float(payload.get("amount", 0))
-        if amount > SPEND_THRESHOLD:
-            return "require_verification", "Spending exceeds allowed threshold"
-    return decision, reason or "Action classified as safe"
-
 
 @router.post("/authorize_action", response_model=AuthorizationResponse)
+@limiter.limit(rate_limit_str)
 def authorize_action(
     payload: AuthorizationRequest,
     db: Session = Depends(get_db),
@@ -60,7 +35,7 @@ def authorize_action(
 ):
     if payload.agent_id != current_agent.agent_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Agent mismatch")
-    decision, reason = _evaluate_action(payload.action_type, payload.action_payload or {})
+    decision, reason, severity = evaluate_action(payload.action_type, payload.action_payload or {})
     log = AuthorizationLog(
         agent_id=current_agent.agent_id,
         action_type=payload.action_type,
@@ -68,6 +43,7 @@ def authorize_action(
         decision=decision,
         reason=reason,
         blocked_reason=reason if decision != "allow" else None,
+        severity=severity,
     )
     db.add(log)
     db.commit()
@@ -75,6 +51,7 @@ def authorize_action(
 
 
 @router.get("/authorization/logs")
+@limiter.limit(rate_limit_str)
 def authorization_logs(limit: int = 20, db: Session = Depends(get_db), current_agent: Agent = Depends(get_current_agent)):
     logs = (
         db.query(AuthorizationLog)
@@ -95,6 +72,7 @@ def authorization_logs(limit: int = 20, db: Session = Depends(get_db), current_a
 
 
 @router.get("/dashboard/summary")
+@limiter.limit(rate_limit_str)
 def dashboard_summary(db: Session = Depends(get_db)):
     total_agents = db.query(Agent).count()
     now = datetime.utcnow()

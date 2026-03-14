@@ -4,9 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from ..core.rate_limiter import limiter, rate_limit_str
 from ..database import get_db
 from ..models import Agent, AgentReputation, AgentTask
-from .deps import get_current_agent
+from ..core.security import get_current_agent
 
 router = APIRouter()
 
@@ -24,6 +25,7 @@ class TaskLogResponse(BaseModel):
 
 
 @router.post("/log_task", response_model=TaskLogResponse)
+@limiter.limit(rate_limit_str)
 def log_task(payload: TaskLogRequest, db: Session = Depends(get_db), current_agent: Agent = Depends(get_current_agent)):
     if payload.agent_id != current_agent.agent_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Agent mismatch")
@@ -52,6 +54,7 @@ def log_task(payload: TaskLogRequest, db: Session = Depends(get_db), current_age
 
 
 @router.get("/tasks/recent")
+@limiter.limit(rate_limit_str)
 def recent_tasks(limit: int = 20, db: Session = Depends(get_db), current_agent: Agent = Depends(get_current_agent)):
     tasks = (
         db.query(AgentTask)

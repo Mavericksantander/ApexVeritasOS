@@ -17,11 +17,12 @@ class AVOSAgent:
         self.base_url = base_url.rstrip("/")
         self.agent_id: Optional[str] = None
         self.public_key: Optional[str] = None
+        self.access_token: Optional[str] = None
 
     def _headers(self) -> dict[str, str]:
-        if not self.public_key:
+        if not self.access_token:
             return {}
-        return {"X-API-Key": self.public_key}
+        return {"Authorization": f"Bearer {self.access_token}"}
 
     def register_agent(self) -> dict:
         payload = {
@@ -34,10 +35,11 @@ class AVOSAgent:
         data = res.json()
         self.agent_id = data["agent_id"]
         self.public_key = data["public_key"]
+        self.access_token = data.get("access_token")
         return data
 
     def log_task(self, description: str, result_status: str = "success", execution_time: float = 0.0) -> dict:
-        if not self.agent_id or not self.public_key:
+        if not self.agent_id or not self.access_token:
             raise RuntimeError("Register the agent before logging tasks")
         payload = {
             "agent_id": self.agent_id,
@@ -50,7 +52,7 @@ class AVOSAgent:
         return res.json()
 
     def authorize_action(self, action_type: str, action_payload: Optional[dict] = None) -> dict:
-        if not self.agent_id or not self.public_key:
+        if not self.agent_id or not self.access_token:
             raise RuntimeError("Register the agent before requesting authorization")
         payload = {
             "agent_id": self.agent_id,
@@ -62,7 +64,7 @@ class AVOSAgent:
         return res.json()
 
     def send_heartbeat(self, model: Optional[str] = None, version: Optional[str] = None, status: str = "active") -> dict:
-        if not self.agent_id or not self.public_key:
+        if not self.agent_id or not self.access_token:
             raise RuntimeError("Register the agent before sending heartbeats")
         payload = {
             "model": model,
