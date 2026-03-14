@@ -1,4 +1,4 @@
 .venv/
 avos.db
 __pycache__/
-
+*.pyc
