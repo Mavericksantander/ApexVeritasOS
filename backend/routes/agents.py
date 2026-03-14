@@ -1,24 +1,29 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import uuid4
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+import structlog
 
 from ..core.rate_limiter import limiter, rate_limit_str
 from ..core.security import create_access_token, get_current_agent, pwd_context
 from ..database import get_db
-from ..models import Agent
+from ..models import Agent, AgentKey
+from ..core.events import broker
+from ..schemas.agent import ActiveAgentResponse, AgentIdentityResponse
+from ..schemas.capability import CapabilityItem, capability_names, normalize_capabilities
 from .deps import verify_owner
 
 router = APIRouter()
+logger = structlog.get_logger()
 
 
 class RegisterAgentRequest(BaseModel):
     agent_name: str = Field(..., max_length=64)
     owner_id: str = Field(..., max_length=64)
-    capabilities: list[str] = Field(default_factory=list)
+    capabilities: list[object] = Field(default_factory=list)
 
 
 class RegisterAgentResponse(BaseModel):
@@ -49,18 +54,51 @@ def register_agent(
         agent_id=agent_id,
         name=payload.agent_name,
         owner_id=payload.owner_id,
-        capabilities=payload.capabilities,
+        capabilities=normalize_capabilities(payload.capabilities),
         public_key=pwd_context.hash(public_key_value),
     )
     db.add(agent)
+    db.add(AgentKey(agent_id=agent_id, public_key=public_key_value))
     db.commit()
     db.refresh(agent)
-    token = create_access_token({"agent_id": agent.agent_id})
+    token = create_access_token(
+        {"agent_id": agent.agent_id, "capabilities": capability_names(agent.capabilities), "reputation": agent.reputation_score}
+    )
+    logger.info("agent.registered", agent_id=agent.agent_id, developer_id=agent.owner_id)
+    broker.publish(
+        "agent_registered",
+        {
+            "agent_id": agent.agent_id,
+            "developer_id": agent.owner_id,
+            "capabilities": capability_names(agent.capabilities),
+        },
+    )
     return RegisterAgentResponse(
         agent_id=agent.agent_id,
         public_key=public_key_value,
         access_token=token,
         registration_timestamp=agent.registered_at,
+    )
+
+
+@router.get("/agents/{agent_id}/identity", response_model=AgentIdentityResponse)
+@limiter.limit(rate_limit_str)
+def agent_identity(
+    request: Request,
+    agent_id: str,
+    db: Session = Depends(get_db),
+    current_agent: Agent = Depends(verify_owner),
+):
+    key_row = db.query(AgentKey).filter(AgentKey.agent_id == agent_id).first()
+    developer_id = current_agent.owner_id or ""
+    return AgentIdentityResponse(
+        agent_id=current_agent.agent_id,
+        developer_id=developer_id,
+        public_key=key_row.public_key if key_row else "",
+        capabilities=capability_names(current_agent.capabilities),
+        created_at=current_agent.registered_at,
+        reputation=current_agent.reputation_score,
+        verified=bool(developer_id),
     )
 
 
@@ -76,7 +114,7 @@ def get_agent(
         agent_id=agent.agent_id,
         name=agent.name,
         reputation_score=agent.reputation_score,
-        registered_capabilities=agent.capabilities or [],
+        registered_capabilities=capability_names(agent.capabilities),
         total_tasks_executed=agent.total_tasks_executed,
         registered_at=agent.registered_at,
     )
@@ -98,4 +136,33 @@ def list_agents(
             "total_tasks_executed": agent.total_tasks_executed,
         }
         for agent in agents
+    ]
+
+
+@router.get("/agents/active", response_model=list[ActiveAgentResponse])
+@limiter.limit(rate_limit_str)
+def active_agents(
+    request: Request,
+    db: Session = Depends(get_db),
+    _: Agent = Depends(get_current_agent),
+):
+    now = datetime.utcnow()
+    threshold = now - timedelta(minutes=5)
+    agents = (
+        db.query(Agent)
+        .filter(Agent.last_heartbeat_at != None)  # noqa: E711
+        .filter(Agent.last_heartbeat_at >= threshold)
+        .order_by(Agent.last_heartbeat_at.desc())
+        .limit(200)
+        .all()
+    )
+    return [
+        ActiveAgentResponse(
+            agent_id=agent.agent_id,
+            capabilities=[CapabilityItem(**item) for item in normalize_capabilities(agent.capabilities)],
+            reputation=agent.reputation_score,
+            last_heartbeat=agent.last_heartbeat_at,
+        )
+        for agent in agents
+        if agent.last_heartbeat_at is not None
     ]

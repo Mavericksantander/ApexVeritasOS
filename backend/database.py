@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from .core.config import settings
-from .models import Base
+from .models import Base, Policy
 
 DATABASE_URL = settings.DATABASE_URL
 
@@ -13,6 +13,21 @@ SessionLocal = sessionmaker(engine, future=True, expire_on_commit=False)
 
 def init_db():
     Base.metadata.create_all(bind=engine)
+    with SessionLocal() as db:
+        existing = db.query(Policy).limit(1).first()
+        if not existing:
+            defaults = [
+                Policy(name="deny_rm_rf", pattern="rm -rf", action="deny", severity=10),
+                Policy(name="deny_sudo", pattern="sudo", action="deny", severity=9),
+                Policy(name="deny_sensitive_paths", pattern="/etc", action="deny", severity=9),
+                Policy(name="deny_root_paths", pattern="/root", action="deny", severity=9),
+                Policy(name="approve_privileged_fs", pattern="chmod", action="require_approval", severity=7),
+                Policy(name="approve_privileged_owner", pattern="chown", action="require_approval", severity=7),
+                Policy(name="approve_disk_tools", pattern="mkfs", action="require_approval", severity=8),
+                Policy(name="approve_raw_copy", pattern="dd ", action="require_approval", severity=8),
+            ]
+            db.add_all(defaults)
+            db.commit()
 
 
 def get_db():

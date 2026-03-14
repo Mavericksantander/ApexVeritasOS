@@ -5,13 +5,17 @@ import secrets
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+import structlog
 
 from ..core.rate_limiter import limiter, rate_limit_str
 from ..core.security import create_access_token, pwd_context
 from ..database import get_db
-from ..models import Agent
+from ..models import Agent, AgentKey
+from ..core.events import broker
+from ..schemas.capability import capability_names, normalize_capabilities
 
 router = APIRouter()
+logger = structlog.get_logger()
 
 _INVITE_CODES = {"AVOS-OPEN-2026", "PARTNER-KEY-01"}
 
@@ -19,7 +23,7 @@ _INVITE_CODES = {"AVOS-OPEN-2026", "PARTNER-KEY-01"}
 class ExternalRegisterRequest(BaseModel):
     developer_id: str = Field(..., max_length=64)
     bot_name: str = Field(..., max_length=64)
-    capabilities: list[str] = Field(default_factory=list)
+    capabilities: list[object] = Field(default_factory=list)
     invite_code: str = Field(..., min_length=6)
 
 
@@ -53,13 +57,25 @@ def external_register_agent(
         agent_id=str(uuid4()),
         name=payload.bot_name,
         owner_id=payload.developer_id,
-        capabilities=payload.capabilities,
+        capabilities=normalize_capabilities(payload.capabilities),
         public_key=pwd_context.hash(public_key_value),
     )
     db.add(agent)
+    db.add(AgentKey(agent_id=agent.agent_id, public_key=public_key_value))
     db.commit()
     db.refresh(agent)
-    token = create_access_token({"agent_id": agent.agent_id})
+    token = create_access_token(
+        {"agent_id": agent.agent_id, "capabilities": capability_names(agent.capabilities), "reputation": agent.reputation_score}
+    )
+    logger.info("agent.registered_external", agent_id=agent.agent_id, developer_id=agent.owner_id)
+    broker.publish(
+        "agent_registered",
+        {
+            "agent_id": agent.agent_id,
+            "developer_id": agent.owner_id,
+            "capabilities": capability_names(agent.capabilities),
+        },
+    )
     return ExternalRegisterResponse(
         agent_id=agent.agent_id,
         public_key=public_key_value,

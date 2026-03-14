@@ -2,8 +2,8 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any, Dict
 
-from fastapi import Depends, HTTPException, Request, Security, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
@@ -14,7 +14,7 @@ from .config import settings
 from .logging import bind_request
 
 pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
-security_scheme = HTTPBearer(auto_error=False)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
 _rate_limit_store: Dict[str, Dict[str, Any]] = defaultdict(
     lambda: {"count": 0, "reset": datetime.utcnow() + timedelta(seconds=settings.AVOS_RATE_WINDOW)}
@@ -35,9 +35,16 @@ def enforce_rate_limit(agent_id: str) -> None:
         )
 
 
-def create_access_token(data: dict[str, Any], expires_minutes: int = 60) -> str:
+def create_access_token(
+    data: dict[str, Any],
+    *,
+    expires_minutes: int | None = None,
+    expires_seconds: int | None = None,
+) -> str:
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=expires_minutes)
+    if expires_seconds is None:
+        expires_seconds = 3600 if expires_minutes is None else int(expires_minutes) * 60
+    expire = datetime.utcnow() + timedelta(seconds=int(expires_seconds))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
 
@@ -51,12 +58,10 @@ def verify_token(token: str) -> dict[str, Any]:
 
 def get_current_agent(
     request: Request,
-    credentials: HTTPAuthorizationCredentials = Security(security_scheme),
+    token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> Agent:
-    if not credentials:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing authorization token")
-    payload = verify_token(credentials.credentials)
+    payload = verify_token(token)
     agent_id = payload.get("agent_id")
     if not agent_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token payload missing agent_id")

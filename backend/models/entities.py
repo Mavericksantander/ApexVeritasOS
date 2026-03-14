@@ -24,6 +24,14 @@ class Agent(Base):
         return secrets.token_urlsafe(32)
 
 
+class AgentKey(Base):
+    __tablename__ = "agent_keys"
+
+    agent_id = Column(String, ForeignKey("agents.agent_id"), primary_key=True)
+    public_key = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class AgentTask(Base):
     __tablename__ = "agent_tasks"
 
@@ -57,6 +65,17 @@ class AuthorizationLog(Base):
     blocked_reason = Column(Text, nullable=True)
     severity = Column(String, nullable=False, server_default="low")
     timestamp = Column(DateTime, default=datetime.utcnow)
+
+
+class Policy(Base):
+    __tablename__ = "policies"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False, unique=True, index=True)
+    pattern = Column(Text, nullable=False)
+    action = Column(String, nullable=False)  # deny | allow | require_approval
+    severity = Column(Integer, nullable=False, default=5)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class AgentHeartbeat(Base):

@@ -7,6 +7,7 @@ from ..core.rate_limiter import limiter, rate_limit_str
 from ..database import get_db
 from ..models import Agent
 from ..core.security import get_current_agent
+from ..schemas.capability import normalize_capabilities
 
 router = APIRouter()
 
@@ -32,7 +33,7 @@ def public_agents(request: Request, db: Session = Depends(get_db), _: Agent = De
             "agent_name": row.name,
             "reputation_score": row.reputation_score,
             "tasks_completed": row.total_tasks_executed,
-            "capabilities": row.capabilities or [],
+            "capabilities": normalize_capabilities(row.capabilities),
         }
         for row in agents
     ]
@@ -48,17 +49,32 @@ def search_agents(
     _: Agent = Depends(get_current_agent),
 ):
     """Find agents whose capabilities and reputation match the provided filters."""
-    query = db.query(Agent).filter(Agent.reputation_score >= min_reputation)
+    query = (
+        db.query(Agent)
+        .filter(Agent.reputation_score >= min_reputation)
+        .order_by(Agent.reputation_score.desc())
+        .limit(200)
+    )
+    agents = query.all()
     if capability:
-        query = query.filter(Agent.capabilities.contains([capability]))
-    agents = query.order_by(Agent.reputation_score.desc()).limit(50).all()
+        wanted = capability.strip().lower()
+        agents = [
+            agent
+            for agent in agents
+            if any(
+                str(item.get("name", "")).lower() == wanted
+                for item in normalize_capabilities(agent.capabilities)
+                if isinstance(item, dict)
+            )
+        ]
+    agents = agents[:50]
     return [
         {
             "agent_id": agent.agent_id,
             "agent_name": agent.name,
             "reputation_score": agent.reputation_score,
             "tasks_completed": agent.total_tasks_executed,
-            "capabilities": agent.capabilities or [],
+            "capabilities": normalize_capabilities(agent.capabilities),
         }
         for agent in agents
     ]

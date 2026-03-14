@@ -12,9 +12,11 @@ from uuid import uuid4
 from .database import init_db
 from .routes import agents as agent_routes
 from .routes import authorization as auth_routes
+from .routes import events as event_routes
 from .routes import external_onboarding as onboarding_routes
 from .routes import heartbeat as heartbeat_routes
 from .routes import metrics as metrics_routes
+from .routes import policies as policy_routes
 from .routes import reputation as reputation_routes
 from .routes import search as search_routes
 from .routes import tasks as task_routes
@@ -94,6 +96,8 @@ app.include_router(onboarding_routes.router)
 app.include_router(heartbeat_routes.router)
 app.include_router(metrics_routes.router)
 app.include_router(search_routes.router)
+app.include_router(event_routes.router)
+app.include_router(policy_routes.router)
 
 init_db()
 

@@ -9,6 +9,7 @@ from starlette.requests import Request
 from ..core.security import verify_token
 from ..database import SessionLocal
 from ..models import AuthorizationLog
+from ..core.policy_engine import evaluate_policies
 from firewall.action_firewall import evaluate_action
 
 BLOCKED_PATH = "/authorize_action"
@@ -23,37 +24,39 @@ class FirewallMiddleware(BaseHTTPMiddleware):
                 payload = json.loads(body.decode("utf-8")) if body else {}
             except json.JSONDecodeError:
                 payload = {}
-            decision, reason, severity = evaluate_action(payload.get("action_type", ""), payload.get("action_payload", {}))
             agent_id = self._extract_agent(payload, request)
-            self._log_decision(agent_id, payload, decision, reason, severity)
-            if decision != "allow":
-                return JSONResponse(
-                {"detail": reason, "decision": decision, "severity": severity},
-                status_code=403 if decision == "deny" else 202,
-            )
+            with SessionLocal() as db:
+                policy_result = evaluate_policies(
+                    db,
+                    payload.get("action_type", ""),
+                    payload.get("action_payload", {}) or {},
+                )
+                if policy_result:
+                    decision, reason, severity = policy_result
+                else:
+                    decision, reason, severity = evaluate_action(
+                        payload.get("action_type", ""),
+                        payload.get("action_payload", {}) or {},
+                    )
+                log = AuthorizationLog(
+                    agent_id=agent_id or "unknown",
+                    action_type=payload.get("action_type", ""),
+                    payload=json.dumps(payload.get("action_payload", {})),
+                    decision=decision,
+                    reason=reason,
+                    blocked_reason=reason if decision != "allow" else None,
+                    severity=severity,
+                )
+                db.add(log)
+                db.commit()
+
+                if decision != "allow":
+                    return JSONResponse(
+                        {"detail": reason, "decision": decision, "severity": severity},
+                        status_code=403 if decision == "deny" else 202,
+                    )
             request._receive = self._replay_body(body)
         return await call_next(request)
-
-    def _log_decision(
-        self,
-        agent_id: Optional[str],
-        payload: Dict[str, Any],
-        decision: str,
-        reason: str,
-        severity: str,
-    ) -> None:
-        with SessionLocal() as db:
-            log = AuthorizationLog(
-                agent_id=agent_id or "unknown",
-                action_type=payload.get("action_type", ""),
-                payload=json.dumps(payload.get("action_payload", {})),
-                decision=decision,
-                reason=reason,
-                blocked_reason=reason if decision != "allow" else None,
-                severity=severity,
-            )
-            db.add(log)
-            db.commit()
 
     def _extract_agent(self, payload: Dict[str, Any], request: Request) -> Optional[str]:
         token = None

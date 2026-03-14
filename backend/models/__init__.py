@@ -1,4 +1,13 @@
 from .base import Base
-from .entities import Agent, AgentHeartbeat, AgentReputation, AgentTask, AuthorizationLog
+from .entities import Agent, AgentHeartbeat, AgentKey, AgentReputation, AgentTask, AuthorizationLog, Policy
 
-__all__ = ["Base", "Agent", "AgentTask", "AgentReputation", "AuthorizationLog", "AgentHeartbeat"]
+__all__ = [
+    "Base",
+    "Agent",
+    "AgentKey",
+    "AgentTask",
+    "AgentReputation",
+    "AuthorizationLog",
+    "Policy",
+    "AgentHeartbeat",
+]

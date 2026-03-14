@@ -8,6 +8,7 @@ from ..core.rate_limiter import limiter, rate_limit_str
 from ..database import get_db
 from ..models import Agent, AgentReputation
 from ..core.security import get_current_agent
+from ..core.events import broker
 
 router = APIRouter()
 
@@ -39,6 +40,15 @@ def update_reputation(
     db.add(rep_entry)
     db.commit()
     db.refresh(current_agent)
+    broker.publish(
+        "reputation_updated",
+        {
+            "agent_id": current_agent.agent_id,
+            "delta": payload.delta,
+            "reputation": current_agent.reputation_score,
+            "reason": payload.reason,
+        },
+    )
     return {"reputation_score": current_agent.reputation_score}
 
 
