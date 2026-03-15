@@ -1,8 +1,8 @@
-# ApexVeritasOS (AVOS)
+# Apex Protocol (AVOS)
 
 AVOS es una plataforma de gobernanza para agentes autónomos: identidad, autenticación JWT, logging de tareas, reputación y controles de seguridad (firewall + policies), con un dashboard HTML/JS y eventos SSE para demos.
 
-![CI](https://github.com/Mavericksantander/fantastic-octo-potato/actions/workflows/ci.yml/badge.svg)
+[![CI](https://github.com/Mavericksantander/Apex-Protocol/actions/workflows/ci.yml/badge.svg)](https://github.com/Mavericksantander/Apex-Protocol/actions/workflows/ci.yml)
 
 ## Qué trae este repo
 - **Backend**: FastAPI + SQLAlchemy 2.0 (`backend/`)
@@ -21,8 +21,8 @@ AVOS es una plataforma de gobernanza para agentes autónomos: identidad, autenti
 
 ## Clonar el repo
 ```bash
-git clone https://github.com/Mavericksantander/ApexVeritasOS.git
-cd ApexVeritasOS/Avos
+git clone https://github.com/Mavericksantander/Apex-Protocol.git
+cd Apex-Protocol/Avos
 ```
 
 ## Levantar el backend (local)
@@ -70,7 +70,7 @@ pip install -e .
 
 Directo desde GitHub (sin clonar):
 ```bash
-python3 -m pip install "git+https://github.com/Mavericksantander/ApexVeritasOS.git#subdirectory=Avos"
+python3 -m pip install "git+https://github.com/Mavericksantander/Apex-Protocol.git#subdirectory=Avos"
 ```
 
 Distribución interna (wheel):
