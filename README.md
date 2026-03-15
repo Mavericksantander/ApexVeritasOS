@@ -15,6 +15,7 @@ AVOS es una plataforma de gobernanza para agentes autónomos: identidad, autenti
 - **Logging**: `structlog`
 - **Apex Registry**: directorio público de agentes verificados (`GET /registry/agents`) + attestations (`POST /registry/attestations`)
 - **Apex Observatory**: observabilidad básica (`/observatory/activity`, `/observatory/graph`, `/observatory/trust_analytics`)
+- **Apex Runtime (MVP)**: policy enforcement mínimo como librería + microservice (`apex_runtime/`)
 
 ## Requisitos
 - Python 3.9+
@@ -155,6 +156,43 @@ Observabilidad operativa (sin JWT):
 - Firewall decisioning: `POST /authorize_action` (JWT)
 - Policies: `GET /policies` y `POST /policies` (JWT + capability `admin`)
 - SSE: `GET /events`
+
+## Apex Runtime (Agent Safety Runtime)
+El runtime es el primitivo mínimo adoptable: **`authorize_action`** como middleware entre agentes y herramientas.
+
+### Usar como librería
+```python
+from apex_runtime.core import authorize_action
+
+agent_ctx = {"public_key": "pk-dev", "created_at": "2026-03-15T00:00:00Z"}
+decision = authorize_action(agent_ctx, "execute_shell", "rm -rf /")
+print(decision)
+```
+
+### Correr como microservice (gateway)
+```bash
+uvicorn apex_runtime.main:app --reload --port 8010
+```
+
+Endpoint:
+- `POST http://127.0.0.1:8010/authorize_action`
+
+Variables de entorno:
+- `APEX_POLICY_FILE` (por defecto: `apex_runtime/policies/default.yaml` si existe)
+- `APEX_AUDIT_LOG_PATH` (por defecto: `audit.log`)
+
+### Llamar el gateway desde Python (HTTP)
+```python
+from apex_runtime import ApexRuntimeClient
+
+client = ApexRuntimeClient(base_url="http://127.0.0.1:8010")
+decision = client.authorize_action(
+    {"public_key": "pk-dev", "created_at": "2026-03-15T00:00:00Z"},
+    "call_external_api",
+    {"url": "https://example.com"},
+)
+print(decision)
+```
 
 ## Tests
 ```bash

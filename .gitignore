@@ -3,3 +3,4 @@ avos.db
 __pycache__/
 *.pyc
 .env
+audit.log

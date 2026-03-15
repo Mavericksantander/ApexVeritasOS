@@ -1,0 +1,17 @@
+rules:
+  - action_type: "execute_shell"
+    deny_regex: 'rm\s+-rf'
+  - action_type: "execute_shell"
+    deny_if:
+      - "rm -rf"
+      - "sudo"
+      - "mkfs"
+      - "dd "
+      - "chmod 777"
+      - "chown "
+      - "curl http"
+      - "wget http"
+  - action_type: "modify_file"
+    allow_if: "safe_paths"
+  - action_type: "call_external_api"
+    require_approval: true

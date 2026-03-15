@@ -1,0 +1,7 @@
+rules:
+  - action_type: "execute_shell"
+    deny_if: "rm -rf"
+  - action_type: "modify_file"
+    allow_if: "safe_paths"
+  - action_type: "call_external_api"
+    require_approval: true

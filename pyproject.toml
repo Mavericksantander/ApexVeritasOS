@@ -19,5 +19,7 @@ package-dir = {"" = "."}
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["avos_sdk*", "sdk*"]
+include = ["apex_runtime*", "avos_sdk*", "sdk*"]
 
+[tool.setuptools.package-data]
+apex_runtime = ["policies.yaml", "policies/*.yaml"]
