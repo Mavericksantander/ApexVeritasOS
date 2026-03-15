@@ -37,10 +37,37 @@
       margin: 0 auto;
     }
 
+    .topbar {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
     h1 {
       font-size: 1.875rem;
       font-weight: 700;
-      margin-bottom: 2rem;
+      margin: 0;
+    }
+
+    .links {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      font-size: 0.95rem;
+    }
+
+    .links a {
+      color: var(--text);
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+    }
+
+    .links a:hover {
+      border-bottom-color: var(--border);
     }
 
     .section {
@@ -90,6 +117,59 @@
       margin-bottom: 1rem;
     }
 
+    .filters {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      align-items: end;
+      margin-bottom: 0.75rem;
+    }
+
+    .filters label {
+      display: grid;
+      gap: 0.25rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .filters input {
+      padding: 0.55rem 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.95rem;
+      color: var(--text);
+      background: var(--bg);
+      min-width: 220px;
+    }
+
+    .filters .checkbox {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding-bottom: 0.35rem;
+    }
+
+    .filters .checkbox input {
+      min-width: 0;
+      width: 16px;
+      height: 16px;
+      padding: 0;
+    }
+
+    .btn {
+      padding: 0.6rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg);
+      color: var(--text);
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn:hover {
+      background: var(--hover);
+    }
+
     @media (max-width: 768px) {
       body { padding: 1.25rem 1rem; }
       h1 { font-size: 1.5rem; }
@@ -105,7 +185,15 @@
 </head>
 <body>
   <div class="container">
-    <h1>ApexVeritasOS Dashboard</h1>
+    <div class="topbar">
+      <h1>ApexVeritasOS Dashboard</h1>
+      <div class="links">
+        <a href="/dashboard/">Landing</a>
+        <a href="/docs" target="_blank" rel="noreferrer">API Docs</a>
+        <a href="/events" target="_blank" rel="noreferrer">SSE</a>
+        <a href="/agents/verified" target="_blank" rel="noreferrer">Verified API</a>
+      </div>
+    </div>
 
     <div class="section">
       <h2>Agents Overview</h2>
@@ -115,17 +203,57 @@
         <table id="active-table">
           <thead>
             <tr>
-              <th>Agent ID</th>
-              <th>Public Key</th>
-              <th>Reputation Score</th>
-              <th>Tasks Completed</th>
-              <th>Last Active</th>
-              <th>Status</th>
+              <th>Name</th>
+              <th>AVID</th>
+              <th>Reputation</th>
+              <th>Effective</th>
+              <th>Tasks</th>
+              <th>Success</th>
+              <th>Blocked</th>
+              <th>Bad Sig</th>
+              <th>Heartbeat</th>
             </tr>
           </thead>
           <tbody>
             <!-- Filas dinámicas con app.js -->
           </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Verified Agents (Pool)</h2>
+      <div id="verified-status" class="status">Loading verified agents…</div>
+      <div class="filters">
+        <label>
+          Capability
+          <input id="filter-capability" type="text" placeholder="e.g. web_scraping" />
+        </label>
+        <label>
+          Min reputation
+          <input id="filter-min-reputation" type="text" placeholder="0" />
+        </label>
+        <div class="checkbox">
+          <input id="filter-active-only" type="checkbox" />
+          <label for="filter-active-only">Active only (heartbeat &lt; 5m)</label>
+        </div>
+        <button id="filter-apply" class="btn" type="button">Apply</button>
+      </div>
+      <div class="table-wrapper">
+        <table id="verified-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>AVID</th>
+              <th>Verification</th>
+              <th>Reputation</th>
+              <th>Tasks</th>
+              <th>Heartbeat</th>
+              <th>Capabilities</th>
+              <th>Identity</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
         </table>
       </div>
     </div>
@@ -138,7 +266,7 @@
           <thead>
             <tr>
               <th>Task ID</th>
-              <th>Agent</th>
+              <th>AVID</th>
               <th>Description</th>
               <th>Status</th>
               <th>Duration</th>
@@ -160,9 +288,12 @@
           <thead>
             <tr>
               <th>Rank</th>
-              <th>Agent ID</th>
-              <th>Reputation</th>
-              <th>Tasks Success</th>
+              <th>Name</th>
+              <th>AVID</th>
+              <th>Effective</th>
+              <th>30d Δ</th>
+              <th>Success</th>
+              <th>Last Task</th>
             </tr>
           </thead>
           <tbody>
@@ -180,7 +311,7 @@
           <thead>
             <tr>
               <th>Timestamp</th>
-              <th>Agent</th>
+              <th>AVID</th>
               <th>Command</th>
               <th>Reason</th>
               <th>Severity</th>
@@ -189,6 +320,40 @@
           <tbody>
             <!-- Filas dinámicas -->
           </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Top Blocked Reasons</h2>
+      <div id="blocked-reasons-status" class="status">Aggregating…</div>
+      <div class="table-wrapper">
+        <table id="blocked-reasons-table">
+          <thead>
+            <tr>
+              <th>Reason</th>
+              <th>Count</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Event Timeline (SSE)</h2>
+      <div id="events-status" class="status">Connecting…</div>
+      <div class="table-wrapper">
+        <table id="events-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Event</th>
+              <th>AVID</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
         </table>
       </div>
     </div>

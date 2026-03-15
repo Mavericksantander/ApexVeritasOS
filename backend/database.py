@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 
 from sqlalchemy import create_engine
+from sqlalchemy import inspect
 from sqlalchemy.orm import sessionmaker
 
 from .core.config import settings
@@ -29,6 +30,44 @@ def init_db():
     except Exception as exc:
         logging.warning("init_db: alembic upgrade failed; falling back to create_all: %s", exc)
         Base.metadata.create_all(bind=engine)
+
+    # Guardrail: if a local SQLite file already existed and migrations didn't apply (or were skipped),
+    # ensure the schema matches the current models for dev/test ergonomics.
+    try:
+        if DATABASE_URL.startswith("sqlite"):
+            insp = inspect(engine)
+            if insp.has_table("agents"):
+                cols = {c["name"] for c in insp.get_columns("agents")}
+                required = {
+                    "agent_id",
+                    "name",
+                    "owner_id",
+                    "capabilities",
+                    "public_key",
+                    "reputation_score",
+                    "total_tasks_executed",
+                    "registered_at",
+                    "last_heartbeat_at",
+                    "avid",
+                    "tasks_success",
+                    "tasks_failure",
+                    "invalid_signature_count",
+                    "blocked_action_count",
+                    "last_task_at",
+                }
+                if not required.issubset(cols):
+                    logging.warning("init_db: sqlite schema mismatch; recreating tables (dev/test).")
+                    Base.metadata.drop_all(bind=engine)
+                    Base.metadata.create_all(bind=engine)
+            if insp.has_table("authorization_logs"):
+                cols = {c["name"] for c in insp.get_columns("authorization_logs")}
+                required = {"id", "agent_id", "action_type", "decision", "timestamp", "entry_hash"}
+                if not required.issubset(cols):
+                    logging.warning("init_db: sqlite auth_logs mismatch; recreating tables (dev/test).")
+                    Base.metadata.drop_all(bind=engine)
+                    Base.metadata.create_all(bind=engine)
+    except Exception as exc:
+        logging.warning("init_db: schema check failed: %s", exc)
 
     with SessionLocal() as db:
         existing = db.query(Policy).limit(1).first()

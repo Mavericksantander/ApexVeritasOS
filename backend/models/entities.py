@@ -18,6 +18,11 @@ class Agent(Base):
     public_key = Column(String, unique=True, nullable=False, index=True)
     reputation_score = Column(Float, default=0.0)
     total_tasks_executed = Column(Integer, default=0)
+    tasks_success = Column(Integer, default=0)
+    tasks_failure = Column(Integer, default=0)
+    invalid_signature_count = Column(Integer, default=0)
+    blocked_action_count = Column(Integer, default=0)
+    last_task_at = Column(DateTime, nullable=True)
     registered_at = Column(DateTime, default=datetime.utcnow)
     last_heartbeat_at = Column(DateTime, nullable=True)
 
@@ -77,6 +82,8 @@ class AuthorizationLog(Base):
     reason = Column(Text)
     blocked_reason = Column(Text, nullable=True)
     severity = Column(String, nullable=False, server_default="low")
+    prev_hash = Column(String, nullable=True)
+    entry_hash = Column(String, nullable=True, index=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
 
 
@@ -128,3 +135,23 @@ class A2AMessage(Base):
     rejected_reason = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     delivered_at = Column(DateTime, nullable=True)
+    prev_hash = Column(String, nullable=True)
+    entry_hash = Column(String, nullable=True, index=True)
+
+
+class A2ASession(Base):
+    __tablename__ = "a2a_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String, nullable=False, unique=True, index=True)
+    initiator_agent_id = Column(String, ForeignKey("agents.agent_id"), nullable=False, index=True)
+    responder_agent_id = Column(String, ForeignKey("agents.agent_id"), nullable=False, index=True)
+    initiator_avid = Column(String, nullable=False, index=True)
+    responder_avid = Column(String, nullable=False, index=True)
+    initiator_nonce = Column(String, nullable=False)
+    responder_nonce = Column(String, nullable=False)
+    constraints = Column(JSON, default=dict)
+    status = Column(String, nullable=False, server_default="pending")  # pending | active | expired | revoked
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    confirmed_at = Column(DateTime, nullable=True)

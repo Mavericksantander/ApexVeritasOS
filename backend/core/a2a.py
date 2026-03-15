@@ -29,6 +29,28 @@ def canonical_a2a_message_bytes(
     return canonical_json_bytes(data)
 
 
+def canonical_handshake_init_bytes(*, from_avid: str, to_avid: str, message_id: str, sent_at: datetime, constraints: Dict[str, Any]) -> bytes:
+    data = {
+        "from_avid": from_avid,
+        "to_avid": to_avid,
+        "message_id": message_id,
+        "sent_at": sent_at.isoformat() + "Z",
+        "constraints": constraints,
+    }
+    return canonical_json_bytes(data)
+
+
+def canonical_handshake_confirm_bytes(*, session_id: str, from_avid: str, to_avid: str, initiator_nonce: str, responder_nonce: str) -> bytes:
+    data = {
+        "session_id": session_id,
+        "from_avid": from_avid,
+        "to_avid": to_avid,
+        "initiator_nonce": initiator_nonce,
+        "responder_nonce": responder_nonce,
+    }
+    return canonical_json_bytes(data)
+
+
 def payload_sha256_hex(payload: Dict[str, Any]) -> str:
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
     return hashlib.sha256(canonical).hexdigest()
@@ -56,4 +78,3 @@ def verify_a2a_signature(
     )
     digest = sha256_digest(msg)
     return verify_ecdsa_p256_sha256(public_key_pem, digest, signature)
-

@@ -97,6 +97,79 @@ class AVOSAgent:
         res.raise_for_status()
         return res.json()
 
+    def a2a_handshake_init(self, to_avid: str, constraints: Optional[dict] = None) -> dict:
+        """Start an AHP session (requires an ECDSA private key)."""
+        if not self.access_token or not self.avid:
+            raise RuntimeError("Register the agent and fetch a token before handshake")
+        if not self.signing_private_key_pem:
+            raise RuntimeError("signing_private_key_pem is required for AHP")
+
+        message_id = str(uuid.uuid4())
+        sent_at = datetime.now(timezone.utc).replace(microsecond=0)
+        init = {
+            "from_avid": self.avid,
+            "to_avid": to_avid,
+            "message_id": message_id,
+            "sent_at": sent_at.isoformat().replace("+00:00", "Z"),
+            "constraints": constraints or {},
+        }
+        canonical = json.dumps(init, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str).encode("utf-8")
+        digest = hashlib.sha256(canonical).digest()
+
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import ec, utils
+
+        priv = serialization.load_pem_private_key(self.signing_private_key_pem.encode("utf-8"), password=None)
+        signature = priv.sign(digest, ec.ECDSA(utils.Prehashed(hashes.SHA256())))
+        signature_b64 = base64.b64encode(signature).decode("utf-8")
+
+        req = {
+            "to_avid": to_avid,
+            "message_id": message_id,
+            "sent_at": sent_at.isoformat(),
+            "constraints": constraints or {},
+            "signature": signature_b64,
+        }
+        res = requests.post(f"{self.base_url}/a2a/handshake/init", headers=self._headers(), json=req)
+        res.raise_for_status()
+        return res.json()
+
+    def a2a_handshake_confirm(self, session_id: str) -> dict:
+        """Confirm an AHP session as the responder (requires ECDSA private key)."""
+        if not self.access_token or not self.avid:
+            raise RuntimeError("Register the agent and fetch a token before handshake")
+        if not self.signing_private_key_pem:
+            raise RuntimeError("signing_private_key_pem is required for AHP")
+
+        info = requests.get(f"{self.base_url}/a2a/handshake/{session_id}", headers=self._headers())
+        info.raise_for_status()
+        data = info.json()
+
+        confirm = {
+            "session_id": data["session_id"],
+            "from_avid": data["from_avid"],
+            "to_avid": data["to_avid"],
+            "initiator_nonce": data["initiator_nonce"],
+            "responder_nonce": data["responder_nonce"],
+        }
+        canonical = json.dumps(confirm, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str).encode("utf-8")
+        digest = hashlib.sha256(canonical).digest()
+
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import ec, utils
+
+        priv = serialization.load_pem_private_key(self.signing_private_key_pem.encode("utf-8"), password=None)
+        signature = priv.sign(digest, ec.ECDSA(utils.Prehashed(hashes.SHA256())))
+        signature_b64 = base64.b64encode(signature).decode("utf-8")
+
+        res = requests.post(
+            f"{self.base_url}/a2a/handshake/confirm",
+            headers=self._headers(),
+            json={"session_id": session_id, "signature": signature_b64},
+        )
+        res.raise_for_status()
+        return res.json()
+
     def fetch_token(self, expires_in: int = 3600) -> dict:
         if not self.agent_id or not self.public_key:
             raise RuntimeError("Register the agent before requesting a token")

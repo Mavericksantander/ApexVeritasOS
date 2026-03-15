@@ -5,11 +5,12 @@ from typing import Any, Dict, Tuple
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 import structlog
 
 from ..core.rate_limiter import limiter, rate_limit_str
 from ..database import get_db
-from ..models import Agent, AgentTask, AuthorizationLog, AgentKey
+from ..models import Agent, AgentTask, AuthorizationLog, AgentKey, AgentReputation
 from ..core.security import create_access_token, get_current_agent, pwd_context
 from ..schemas.auth import TokenRequest, TokenResponse
 from ..schemas.capability import capability_names
@@ -17,6 +18,8 @@ from firewall.action_firewall import evaluate_action
 from ..core.policy_engine import evaluate_policies
 from ..core.constitution import evaluate_action_against_constitution
 from ..core.events import broker
+from ..core.reputation_metrics import effective_reputation, success_rate
+from ..core.audit_chain import compute_chain_hash
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -102,6 +105,28 @@ def authorize_action(
             decision, reason, severity = policy_result
         else:
             decision, reason, severity = evaluate_action(payload.action_type, payload.action_payload or {})
+    if decision != "allow":
+        current_agent.blocked_action_count = int(getattr(current_agent, "blocked_action_count", 0) or 0) + 1
+    prev = (
+        db.query(AuthorizationLog.entry_hash)
+        .filter(AuthorizationLog.agent_id == current_agent.agent_id)
+        .order_by(AuthorizationLog.id.desc())
+        .limit(1)
+        .scalar()
+    )
+    entry_hash = compute_chain_hash(
+        prev_hash=prev,
+        namespace="authorization_log",
+        fields={
+            "agent_id": current_agent.agent_id,
+            "avid": getattr(current_agent, "avid", None) or "",
+            "action_type": payload.action_type,
+            "payload": payload.action_payload or {},
+            "decision": decision,
+            "reason": reason,
+            "severity": severity,
+        },
+    )
     log = AuthorizationLog(
         agent_id=current_agent.agent_id,
         action_type=payload.action_type,
@@ -110,6 +135,8 @@ def authorize_action(
         reason=reason,
         blocked_reason=reason if decision != "allow" else None,
         severity=severity,
+        prev_hash=prev,
+        entry_hash=entry_hash,
     )
     db.add(log)
     db.commit()
@@ -174,6 +201,31 @@ def dashboard_summary(request: Request, db: Session = Depends(get_db)):
         .all()
     )
 
+    # Derived reputation window (last 30 days)
+    rep_threshold = now - timedelta(days=30)
+    agent_ids_for_rep = {a.agent_id for a in active_agents} | {a.agent_id for a in top_agents}
+    rep_30d_map: dict[str, float] = {}
+    if agent_ids_for_rep:
+        rep_rows = (
+            db.query(AgentReputation.agent_id, func.coalesce(func.sum(AgentReputation.delta), 0.0))
+            .filter(AgentReputation.created_at >= rep_threshold)
+            .filter(AgentReputation.agent_id.in_(list(agent_ids_for_rep)))
+            .group_by(AgentReputation.agent_id)
+            .all()
+        )
+        rep_30d_map = {agent_id: float(total) for agent_id, total in rep_rows}
+
+    # Top blocked reasons (ops-friendly)
+    reason_rows = (
+        db.query(func.coalesce(AuthorizationLog.blocked_reason, AuthorizationLog.reason), func.count(AuthorizationLog.id))
+        .filter(AuthorizationLog.decision != "allow")
+        .group_by(func.coalesce(AuthorizationLog.blocked_reason, AuthorizationLog.reason))
+        .order_by(func.count(AuthorizationLog.id).desc())
+        .limit(8)
+        .all()
+    )
+    top_blocked_reasons = [{"reason": (r or "Unknown"), "count": int(c)} for r, c in reason_rows]
+
     ids_for_avid = {t.agent_id for t in tasks} | {l.agent_id for l in denied}
     avid_map: dict[str, str] = {}
     if ids_for_avid:
@@ -187,6 +239,16 @@ def dashboard_summary(request: Request, db: Session = Depends(get_db)):
                 "agent_id": agent.agent_id,
                 "avid": getattr(agent, "avid", None) or "",
                 "name": agent.name,
+                "reputation_score": agent.reputation_score,
+                "reputation_effective": round(
+                    effective_reputation(agent.reputation_score, last_activity_at=getattr(agent, "last_task_at", None) or agent.registered_at),
+                    4,
+                ),
+                "tasks_completed": agent.total_tasks_executed,
+                "success_rate": success_rate(getattr(agent, "tasks_success", 0) or 0, getattr(agent, "tasks_failure", 0) or 0),
+                "invalid_signature_count": int(getattr(agent, "invalid_signature_count", 0) or 0),
+                "blocked_action_count": int(getattr(agent, "blocked_action_count", 0) or 0),
+                "last_30d_delta": rep_30d_map.get(agent.agent_id, 0.0),
                 "last_heartbeat": agent.last_heartbeat_at,
             }
             for agent in active_agents
@@ -197,7 +259,17 @@ def dashboard_summary(request: Request, db: Session = Depends(get_db)):
                 "avid": getattr(agent, "avid", None) or "",
                 "name": agent.name,
                 "reputation_score": agent.reputation_score,
+                "reputation_effective": round(
+                    effective_reputation(agent.reputation_score, last_activity_at=getattr(agent, "last_task_at", None) or agent.registered_at),
+                    4,
+                ),
                 "capabilities": agent.capabilities or [],
+                "tasks_completed": agent.total_tasks_executed,
+                "success_rate": success_rate(getattr(agent, "tasks_success", 0) or 0, getattr(agent, "tasks_failure", 0) or 0),
+                "invalid_signature_count": int(getattr(agent, "invalid_signature_count", 0) or 0),
+                "blocked_action_count": int(getattr(agent, "blocked_action_count", 0) or 0),
+                "last_30d_delta": rep_30d_map.get(agent.agent_id, 0.0),
+                "last_task_at": getattr(agent, "last_task_at", None),
             }
             for agent in top_agents
         ],
@@ -224,4 +296,5 @@ def dashboard_summary(request: Request, db: Session = Depends(get_db)):
             }
             for log in denied
         ],
+        "top_blocked_reasons": top_blocked_reasons,
     }

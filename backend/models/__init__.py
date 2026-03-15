@@ -1,6 +1,7 @@
 from .base import Base
 from .entities import (
     A2AMessage,
+    A2ASession,
     Agent,
     AgentHeartbeat,
     AgentKey,
@@ -22,4 +23,5 @@ __all__ = [
     "AgentHeartbeat",
     "AgentSigningKey",
     "A2AMessage",
+    "A2ASession",
 ]

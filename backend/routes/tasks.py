@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -64,6 +65,8 @@ def _log_task_impl(
         if not ok:
             delta = -1.0
             current_agent.reputation_score = round(current_agent.reputation_score + delta, 2)
+            current_agent.invalid_signature_count = int(current_agent.invalid_signature_count or 0) + 1
+            current_agent.tasks_failure = int(current_agent.tasks_failure or 0) + 1
             rep_entry = AgentReputation(
                 agent_id=current_agent.agent_id,
                 delta=delta,
@@ -95,6 +98,11 @@ def _log_task_impl(
     delta = 0.5 if payload.result_status == "success" else -1.0
     current_agent.reputation_score = round(current_agent.reputation_score + delta, 2)
     current_agent.total_tasks_executed += 1
+    if payload.result_status == "success":
+        current_agent.tasks_success = int(current_agent.tasks_success or 0) + 1
+    else:
+        current_agent.tasks_failure = int(current_agent.tasks_failure or 0) + 1
+    current_agent.last_task_at = datetime.utcnow()
     rep_entry = AgentReputation(
         agent_id=current_agent.agent_id,
         delta=delta,

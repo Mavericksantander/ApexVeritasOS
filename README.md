@@ -99,6 +99,12 @@ agent.log_task("web research", result_status="success", execution_time=0.2)
 agent.authorize_action("execute_shell_command", {"command": "echo hello"})
 ```
 
+## Adapters (OpenClaw / LangChain / CrewAI)
+AVOS incluye wrappers livianos (sin dependencias forzadas) para traducir tool calls → `authorize_action` y resultados → `log_task`.
+
+- Código: `avos_sdk/adapters/`
+- Ejemplos: `scripts/examples/`
+
 Notas:
 - `capabilities` acepta `list[str]` (legacy) o `list[{name, version}]` (estructurado).
 - `log_task` envía `signature` automáticamente (por defecto: HMAC-SHA256 usando el `public_key` devuelto al registrar).
