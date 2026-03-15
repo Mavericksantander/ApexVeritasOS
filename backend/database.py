@@ -54,6 +54,8 @@ def init_db():
                     "invalid_signature_count",
                     "blocked_action_count",
                     "last_task_at",
+                    "trust_vector",
+                    "trust_updated_at",
                 }
                 if not required.issubset(cols):
                     logging.warning("init_db: sqlite schema mismatch; recreating tables (dev/test).")

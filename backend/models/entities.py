@@ -23,6 +23,10 @@ class Agent(Base):
     invalid_signature_count = Column(Integer, default=0)
     blocked_action_count = Column(Integer, default=0)
     last_task_at = Column(DateTime, nullable=True)
+    # Explainable multi-dimensional trust vector snapshot (derived from counters + heartbeat).
+    # Stored to make public directory/observability cheap to compute.
+    trust_vector = Column(JSON, nullable=True)
+    trust_updated_at = Column(DateTime, nullable=True)
     registered_at = Column(DateTime, default=datetime.utcnow)
     last_heartbeat_at = Column(DateTime, nullable=True)
 
@@ -168,4 +172,21 @@ class AgentAttestation(Base):
     claim_value = Column(JSON, nullable=False)
     signature = Column(Text, nullable=False)  # issuer signature over canonical claim
     verified = Column(Boolean, nullable=False, server_default="1")
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class AgentPeerAttestation(Base):
+    __tablename__ = "agent_peer_attestations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    from_agent_id = Column(String, ForeignKey("agents.agent_id"), nullable=False, index=True)
+    from_avid = Column(String, nullable=False, index=True)
+    target_avid = Column(String, nullable=False, index=True)
+    dimension = Column(String, nullable=False, index=True)  # competence | safety | availability | transparency
+    score_delta = Column(Float, nullable=False)
+    evidence_task_id = Column(Integer, nullable=True, index=True)
+    evidence_session_id = Column(String, nullable=True, index=True)
+    reason = Column(Text, nullable=True)
+    signature = Column(Text, nullable=False)  # ECDSA signature over canonical attestation payload
+    revoked = Column(Boolean, nullable=False, server_default="0")
     created_at = Column(DateTime, default=datetime.utcnow, index=True)

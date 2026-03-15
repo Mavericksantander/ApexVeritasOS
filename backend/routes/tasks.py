@@ -11,6 +11,7 @@ from ..models import Agent, AgentKey, AgentReputation, AgentTask
 from ..core.security import get_current_agent
 from ..core.events import broker
 from ..core.signatures import canonical_json_bytes, sha256_digest, verify_ecdsa_p256_sha256, verify_hmac_sha256
+from ..core.trust_vector import compute_trust_vector
 
 router = APIRouter()
 
@@ -67,6 +68,15 @@ def _log_task_impl(
             current_agent.reputation_score = round(current_agent.reputation_score + delta, 2)
             current_agent.invalid_signature_count = int(current_agent.invalid_signature_count or 0) + 1
             current_agent.tasks_failure = int(current_agent.tasks_failure or 0) + 1
+            tv = compute_trust_vector(
+                tasks_success=int(current_agent.tasks_success or 0),
+                tasks_failure=int(current_agent.tasks_failure or 0),
+                blocked_action_count=int(getattr(current_agent, "blocked_action_count", 0) or 0),
+                invalid_signature_count=int(current_agent.invalid_signature_count or 0),
+                last_heartbeat_at=getattr(current_agent, "last_heartbeat_at", None),
+            )
+            current_agent.trust_vector = tv.as_dict()
+            current_agent.trust_updated_at = datetime.utcnow()
             rep_entry = AgentReputation(
                 agent_id=current_agent.agent_id,
                 delta=delta,
@@ -103,6 +113,15 @@ def _log_task_impl(
     else:
         current_agent.tasks_failure = int(current_agent.tasks_failure or 0) + 1
     current_agent.last_task_at = datetime.utcnow()
+    tv = compute_trust_vector(
+        tasks_success=int(current_agent.tasks_success or 0),
+        tasks_failure=int(current_agent.tasks_failure or 0),
+        blocked_action_count=int(getattr(current_agent, "blocked_action_count", 0) or 0),
+        invalid_signature_count=int(getattr(current_agent, "invalid_signature_count", 0) or 0),
+        last_heartbeat_at=getattr(current_agent, "last_heartbeat_at", None),
+    )
+    current_agent.trust_vector = tv.as_dict()
+    current_agent.trust_updated_at = datetime.utcnow()
     rep_entry = AgentReputation(
         agent_id=current_agent.agent_id,
         delta=delta,

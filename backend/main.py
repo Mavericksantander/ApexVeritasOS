@@ -36,6 +36,7 @@ from .routes import reputation as reputation_routes
 from .routes import registry as registry_routes
 from .routes import search as search_routes
 from .routes import tasks as task_routes
+from .routes import trust as trust_routes
 from .core.config import settings
 from .core.logging import bind_request, configure_logging, reset_context
 from .core.rate_limiter import limiter
@@ -120,6 +121,7 @@ app.openapi = custom_openapi
 
 app.include_router(agent_routes.router)
 app.include_router(task_routes.router)
+app.include_router(trust_routes.router)
 app.include_router(reputation_routes.router)
 app.include_router(auth_routes.router)
 app.include_router(onboarding_routes.router)

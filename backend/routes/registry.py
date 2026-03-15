@@ -123,6 +123,8 @@ def registry_agents(
                     effective_reputation(agent.reputation_score or 0.0, last_activity_at=getattr(agent, "last_task_at", None) or agent.registered_at)
                 ),
                 success_rate=success_rate(getattr(agent, "tasks_success", 0) or 0, getattr(agent, "tasks_failure", 0) or 0),
+                trust_vector=getattr(agent, "trust_vector", None) or {},
+                trust_updated_at=getattr(agent, "trust_updated_at", None),
                 verification_level=ver["verification_level"],
                 verified_by_avos=ver["verified_by_avos"],
                 active=ver["active"],
@@ -183,4 +185,3 @@ def create_attestation(
         verified=True,
         created_at=row.created_at,
     )
-

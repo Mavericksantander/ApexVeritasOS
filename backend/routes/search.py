@@ -10,7 +10,6 @@ from ..database import get_db
 from ..models import Agent, AgentSigningKey
 from ..schemas.capability import normalize_capabilities
 from ..core.avid import validate_avid_format
-
 router = APIRouter()
 
 _ACTIVE_WINDOW = timedelta(minutes=5)
@@ -44,6 +43,8 @@ def public_agents(request: Request, db: Session = Depends(get_db)):
             Agent.total_tasks_executed,
             Agent.capabilities,
             Agent.last_heartbeat_at,
+            Agent.trust_vector,
+            Agent.trust_updated_at,
             AgentSigningKey.agent_id.label("has_signing_key"),
         )
         .outerjoin(AgentSigningKey, AgentSigningKey.agent_id == Agent.agent_id)
@@ -59,6 +60,8 @@ def public_agents(request: Request, db: Session = Depends(get_db)):
             "tasks_completed": row.total_tasks_executed,
             "capabilities": normalize_capabilities(row.capabilities),
             "last_heartbeat_at": row.last_heartbeat_at,
+            "trust_vector": row.trust_vector or {},
+            "trust_updated_at": getattr(row, "trust_updated_at", None),
             **_verification(row.avid, bool(row.has_signing_key), row.last_heartbeat_at),
         }
         for row in agents
@@ -107,6 +110,8 @@ def search_agents(
             "tasks_completed": agent.total_tasks_executed,
             "capabilities": normalize_capabilities(agent.capabilities),
             "last_heartbeat_at": agent.last_heartbeat_at,
+            "trust_vector": getattr(agent, "trust_vector", None) or {},
+            "trust_updated_at": getattr(agent, "trust_updated_at", None),
             **_verification(agent.avid, has_key, agent.last_heartbeat_at),
         }
         for agent, has_key in agents
@@ -168,6 +173,8 @@ def verified_agents(
             "tasks_completed": agent.total_tasks_executed,
             "capabilities": normalize_capabilities(agent.capabilities),
             "last_heartbeat_at": agent.last_heartbeat_at,
+            "trust_vector": getattr(agent, "trust_vector", None) or {},
+            "trust_updated_at": getattr(agent, "trust_updated_at", None),
             **_verification(agent.avid, True, agent.last_heartbeat_at),
         }
         for agent in agents
@@ -193,5 +200,7 @@ def public_identity_by_avid(
         "reputation_score": agent.reputation_score,
         "tasks_completed": agent.total_tasks_executed,
         "last_heartbeat_at": agent.last_heartbeat_at,
+        "trust_vector": getattr(agent, "trust_vector", None) or {},
+        "trust_updated_at": getattr(agent, "trust_updated_at", None),
         **_verification(agent.avid, has_key, agent.last_heartbeat_at),
     }

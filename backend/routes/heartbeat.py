@@ -10,6 +10,7 @@ from ..core.rate_limiter import limiter, rate_limit_str
 from ..database import get_db
 from ..models import Agent, AgentHeartbeat
 from .deps import verify_owner
+from ..core.trust_vector import compute_trust_vector
 
 router = APIRouter()
 
@@ -41,6 +42,15 @@ def record_heartbeat(
     agent = db.query(Agent).filter(Agent.agent_id == agent_id).first()
     if agent:
         agent.last_heartbeat_at = now
+        tv = compute_trust_vector(
+            tasks_success=int(getattr(agent, "tasks_success", 0) or 0),
+            tasks_failure=int(getattr(agent, "tasks_failure", 0) or 0),
+            blocked_action_count=int(getattr(agent, "blocked_action_count", 0) or 0),
+            invalid_signature_count=int(getattr(agent, "invalid_signature_count", 0) or 0),
+            last_heartbeat_at=now,
+        )
+        agent.trust_vector = tv.as_dict()
+        agent.trust_updated_at = now
     db.add(heartbeat)
     db.commit()
     return {

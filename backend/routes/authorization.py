@@ -20,6 +20,7 @@ from ..core.constitution import evaluate_action_against_constitution
 from ..core.events import broker
 from ..core.reputation_metrics import effective_reputation, success_rate
 from ..core.audit_chain import compute_chain_hash
+from ..core.trust_vector import compute_trust_vector
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -107,6 +108,15 @@ def authorize_action(
             decision, reason, severity = evaluate_action(payload.action_type, payload.action_payload or {})
     if decision != "allow":
         current_agent.blocked_action_count = int(getattr(current_agent, "blocked_action_count", 0) or 0) + 1
+    tv = compute_trust_vector(
+        tasks_success=int(getattr(current_agent, "tasks_success", 0) or 0),
+        tasks_failure=int(getattr(current_agent, "tasks_failure", 0) or 0),
+        blocked_action_count=int(getattr(current_agent, "blocked_action_count", 0) or 0),
+        invalid_signature_count=int(getattr(current_agent, "invalid_signature_count", 0) or 0),
+        last_heartbeat_at=getattr(current_agent, "last_heartbeat_at", None),
+    )
+    current_agent.trust_vector = tv.as_dict()
+    current_agent.trust_updated_at = datetime.utcnow()
     prev = (
         db.query(AuthorizationLog.entry_hash)
         .filter(AuthorizationLog.agent_id == current_agent.agent_id)

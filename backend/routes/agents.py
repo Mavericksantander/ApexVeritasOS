@@ -16,6 +16,10 @@ from ..schemas.agent import ActiveAgentResponse, AgentIdentityResponse
 from ..schemas.capability import CapabilityItem, capability_names, normalize_capabilities
 from ..core.avid import generate_avid
 from ..core.constitution import constitution_hash
+from ..schemas.reputation import AgentReputationResponse, AgentReputationSignals
+from ..core.reputation_metrics import effective_reputation, success_rate
+from ..core.trust_vector import compute_trust_vector
+from ..core.peer_attestations import aggregate_peer_adjustments
 from .deps import verify_owner
 
 router = APIRouter()
@@ -186,3 +190,72 @@ def active_agents(
         for agent in agents
         if agent.last_heartbeat_at is not None
     ]
+
+
+@router.get("/agents/{agent_id}/reputation", response_model=AgentReputationResponse)
+@limiter.limit(rate_limit_str)
+def agent_reputation(
+    request: Request,
+    agent_id: str,
+    db: Session = Depends(get_db),
+    current_agent: Agent = Depends(verify_owner),
+):
+    """Return explainable reputation signals + trust vector for the agent (self-only for MVP)."""
+    # verify_owner guarantees agent_id == current_agent.agent_id; keep the query cheap and consistent.
+    agent = db.query(Agent).filter(Agent.agent_id == agent_id).first()
+    if not agent:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
+
+    tv = agent.trust_vector or {}
+    # If a legacy DB row has no trust_vector yet, compute a best-effort one on read.
+    peer_adj = aggregate_peer_adjustments(db, target_avid=getattr(agent, "avid", None) or "", window_days=30)
+    if not tv:
+        computed = compute_trust_vector(
+            tasks_success=int(getattr(agent, "tasks_success", 0) or 0),
+            tasks_failure=int(getattr(agent, "tasks_failure", 0) or 0),
+            blocked_action_count=int(getattr(agent, "blocked_action_count", 0) or 0),
+            invalid_signature_count=int(getattr(agent, "invalid_signature_count", 0) or 0),
+            last_heartbeat_at=getattr(agent, "last_heartbeat_at", None),
+            peer_adjustments=peer_adj,
+        )
+        tv = computed.as_dict()
+    else:
+        # Overlay peer adjustments on top of persisted trust vector, for explainability.
+        try:
+            base = compute_trust_vector(
+                tasks_success=int(getattr(agent, "tasks_success", 0) or 0),
+                tasks_failure=int(getattr(agent, "tasks_failure", 0) or 0),
+                blocked_action_count=int(getattr(agent, "blocked_action_count", 0) or 0),
+                invalid_signature_count=int(getattr(agent, "invalid_signature_count", 0) or 0),
+                last_heartbeat_at=getattr(agent, "last_heartbeat_at", None),
+                peer_adjustments=peer_adj,
+            )
+            tv = base.as_dict()
+        except Exception:
+            pass
+
+    signals = AgentReputationSignals(
+        tasks_success=int(getattr(agent, "tasks_success", 0) or 0),
+        tasks_failure=int(getattr(agent, "tasks_failure", 0) or 0),
+        total_tasks_executed=int(getattr(agent, "total_tasks_executed", 0) or 0),
+        blocked_action_count=int(getattr(agent, "blocked_action_count", 0) or 0),
+        invalid_signature_count=int(getattr(agent, "invalid_signature_count", 0) or 0),
+        last_task_at=getattr(agent, "last_task_at", None),
+        last_heartbeat_at=getattr(agent, "last_heartbeat_at", None),
+    )
+
+    return AgentReputationResponse(
+        agent_id=agent.agent_id,
+        avid=getattr(agent, "avid", None) or "",
+        reputation_score=float(agent.reputation_score or 0.0),
+        reputation_effective=float(
+            effective_reputation(
+                float(agent.reputation_score or 0.0),
+                last_activity_at=getattr(agent, "last_task_at", None) or agent.registered_at,
+            )
+        ),
+        success_rate=success_rate(signals.tasks_success, signals.tasks_failure),
+        trust_vector=tv,
+        trust_updated_at=getattr(agent, "trust_updated_at", None),
+        signals=signals,
+    )

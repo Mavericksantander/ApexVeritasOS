@@ -261,3 +261,63 @@ class AVOSAgent:
         )
         res.raise_for_status()
         return res.json()
+
+    def trust_attest(
+        self,
+        target_avid: str,
+        dimension: str,
+        score_delta: float,
+        *,
+        evidence_task_id: Optional[int] = None,
+        evidence_session_id: Optional[str] = None,
+        reason: Optional[str] = None,
+    ) -> dict:
+        """Create a peer attestation (vouch) about another agent (requires ECDSA private key)."""
+        if not self.access_token or not self.avid:
+            raise RuntimeError("Register the agent and fetch a token before trust attestations")
+        if not self.signing_private_key_pem:
+            raise RuntimeError("signing_private_key_pem is required for trust attestations")
+
+        attested_at = datetime.now(timezone.utc).replace(microsecond=0)
+        signed = {
+            "from_avid": self.avid,
+            "target_avid": target_avid,
+            "dimension": dimension,
+            "score_delta": float(score_delta),
+            "evidence_task_id": evidence_task_id,
+            "evidence_session_id": evidence_session_id,
+            "reason": reason or "",
+            "attested_at": attested_at.isoformat().replace("+00:00", "Z"),
+        }
+        canonical = json.dumps(signed, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str).encode("utf-8")
+        digest = hashlib.sha256(canonical).digest()
+
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import ec, utils
+
+        priv = serialization.load_pem_private_key(self.signing_private_key_pem.encode("utf-8"), password=None)
+        signature = priv.sign(digest, ec.ECDSA(utils.Prehashed(hashes.SHA256())))
+        signature_b64 = base64.b64encode(signature).decode("utf-8")
+
+        payload = {
+            "target_avid": target_avid,
+            "dimension": dimension,
+            "score_delta": float(score_delta),
+            "evidence_task_id": evidence_task_id,
+            "evidence_session_id": evidence_session_id,
+            "reason": reason,
+            "attested_at": attested_at.isoformat().replace("+00:00", "Z"),
+            "signature": signature_b64,
+        }
+        res = requests.post(f"{self.base_url}/trust/attest", headers=self._headers(), json=payload)
+        res.raise_for_status()
+        return res.json()
+
+    def trust_attestations(self, target_avid: str, since_days: int = 30, limit: int = 50) -> list[dict]:
+        """Fetch public peer attestations for a target AVID."""
+        res = requests.get(
+            f"{self.base_url}/trust/attestations/{target_avid}",
+            params={"since_days": since_days, "limit": limit},
+        )
+        res.raise_for_status()
+        return res.json()

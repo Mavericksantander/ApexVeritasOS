@@ -33,10 +33,11 @@ class RegistryAgentItem(BaseModel):
     reputation_score: float
     reputation_effective: float
     success_rate: Optional[float] = None
+    trust_vector: Dict[str, Any] = Field(default_factory=dict)
+    trust_updated_at: Optional[datetime] = None
     verification_level: str
     verified_by_avos: bool
     active: bool
     last_heartbeat_at: Optional[datetime] = None
     last_task_at: Optional[datetime] = None
     attestations: list[AttestationResponse] = Field(default_factory=list)
-
