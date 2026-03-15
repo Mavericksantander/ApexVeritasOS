@@ -15,6 +15,8 @@ from ..schemas.auth import TokenRequest, TokenResponse
 from ..schemas.capability import capability_names
 from firewall.action_firewall import evaluate_action
 from ..core.policy_engine import evaluate_policies
+from ..core.constitution import evaluate_action_against_constitution
+from ..core.events import broker
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -81,11 +83,25 @@ def authorize_action(
 ):
     if payload.agent_id != current_agent.agent_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Agent mismatch")
-    policy_result = evaluate_policies(db, payload.action_type, payload.action_payload or {})
-    if policy_result:
-        decision, reason, severity = policy_result
+
+    constitution = evaluate_action_against_constitution(
+        avid=getattr(current_agent, "avid", None) or current_agent.agent_id,
+        action_type=payload.action_type,
+        action_payload=payload.action_payload or {},
+        agent_reputation=current_agent.reputation_score,
+    )
+    if not constitution.allowed:
+        # For now, any constitutional "verification" also blocks execution here; the caller can surface it to a human.
+        decision = "deny"
+        reason = constitution.explanation
+        severity = constitution.severity
+        broker.publish("constitution_event", constitution.witness)
     else:
-        decision, reason, severity = evaluate_action(payload.action_type, payload.action_payload or {})
+        policy_result = evaluate_policies(db, payload.action_type, payload.action_payload or {})
+        if policy_result:
+            decision, reason, severity = policy_result
+        else:
+            decision, reason, severity = evaluate_action(payload.action_type, payload.action_payload or {})
     log = AuthorizationLog(
         agent_id=current_agent.agent_id,
         action_type=payload.action_type,
@@ -157,12 +173,19 @@ def dashboard_summary(request: Request, db: Session = Depends(get_db)):
         .limit(10)
         .all()
     )
+
+    ids_for_avid = {t.agent_id for t in tasks} | {l.agent_id for l in denied}
+    avid_map: dict[str, str] = {}
+    if ids_for_avid:
+        avid_rows = db.query(Agent.agent_id, Agent.avid).filter(Agent.agent_id.in_(list(ids_for_avid))).all()
+        avid_map = {row.agent_id: (row.avid or "") for row in avid_rows}
     return {
         "total_agents": total_agents,
         "active_agent_count": len(active_agents),
         "active_agents": [
             {
                 "agent_id": agent.agent_id,
+                "avid": getattr(agent, "avid", None) or "",
                 "name": agent.name,
                 "last_heartbeat": agent.last_heartbeat_at,
             }
@@ -171,6 +194,7 @@ def dashboard_summary(request: Request, db: Session = Depends(get_db)):
         "top_agents": [
             {
                 "agent_id": agent.agent_id,
+                "avid": getattr(agent, "avid", None) or "",
                 "name": agent.name,
                 "reputation_score": agent.reputation_score,
                 "capabilities": agent.capabilities or [],
@@ -180,6 +204,7 @@ def dashboard_summary(request: Request, db: Session = Depends(get_db)):
         "recent_tasks": [
             {
                 "agent_id": task.agent_id,
+                "avid": avid_map.get(task.agent_id, ""),
                 "description": task.task_description,
                 "result_status": task.result_status,
                 "execution_time": task.execution_time,
@@ -190,6 +215,7 @@ def dashboard_summary(request: Request, db: Session = Depends(get_db)):
         "recent_blocked_actions": [
             {
                 "agent_id": log.agent_id,
+                "avid": avid_map.get(log.agent_id, ""),
                 "action_type": log.action_type,
                 "decision": log.decision,
                 "reason": log.reason,

@@ -14,6 +14,8 @@ from ..models import Agent, AgentKey
 from ..core.events import broker
 from ..schemas.agent import ActiveAgentResponse, AgentIdentityResponse
 from ..schemas.capability import CapabilityItem, capability_names, normalize_capabilities
+from ..core.avid import generate_avid
+from ..core.constitution import constitution_hash
 from .deps import verify_owner
 
 router = APIRouter()
@@ -27,6 +29,7 @@ class RegisterAgentRequest(BaseModel):
 
 
 class RegisterAgentResponse(BaseModel):
+    avid: str
     agent_id: str
     public_key: str
     access_token: str
@@ -50,12 +53,26 @@ def register_agent(
 ):
     agent_id = str(uuid4())
     public_key_value = secrets.token_urlsafe(32)
+    now = datetime.utcnow()
+    normalized_caps = normalize_capabilities(payload.capabilities)
+    avid = generate_avid(
+        public_key_value,
+        {
+            "agent_name": payload.agent_name,
+            "owner_id": payload.owner_id,
+            "capabilities": normalized_caps,
+        },
+        constitution_hash=constitution_hash(),
+        created_at=now,
+    )
     agent = Agent(
         agent_id=agent_id,
+        avid=avid,
         name=payload.agent_name,
         owner_id=payload.owner_id,
-        capabilities=normalize_capabilities(payload.capabilities),
+        capabilities=normalized_caps,
         public_key=pwd_context.hash(public_key_value),
+        registered_at=now,
     )
     db.add(agent)
     db.add(AgentKey(agent_id=agent_id, public_key=public_key_value))
@@ -69,11 +86,13 @@ def register_agent(
         "agent_registered",
         {
             "agent_id": agent.agent_id,
+            "avid": agent.avid,
             "developer_id": agent.owner_id,
             "capabilities": capability_names(agent.capabilities),
         },
     )
     return RegisterAgentResponse(
+        avid=agent.avid or "",
         agent_id=agent.agent_id,
         public_key=public_key_value,
         access_token=token,
@@ -92,6 +111,7 @@ def agent_identity(
     key_row = db.query(AgentKey).filter(AgentKey.agent_id == agent_id).first()
     developer_id = current_agent.owner_id or ""
     return AgentIdentityResponse(
+        avid=current_agent.avid or "",
         agent_id=current_agent.agent_id,
         developer_id=developer_id,
         public_key=key_row.public_key if key_row else "",

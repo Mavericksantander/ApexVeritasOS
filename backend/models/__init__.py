@@ -1,5 +1,15 @@
 from .base import Base
-from .entities import Agent, AgentHeartbeat, AgentKey, AgentReputation, AgentTask, AuthorizationLog, Policy
+from .entities import (
+    A2AMessage,
+    Agent,
+    AgentHeartbeat,
+    AgentKey,
+    AgentReputation,
+    AgentSigningKey,
+    AgentTask,
+    AuthorizationLog,
+    Policy,
+)
 
 __all__ = [
     "Base",
@@ -10,4 +20,6 @@ __all__ = [
     "AuthorizationLog",
     "Policy",
     "AgentHeartbeat",
+    "AgentSigningKey",
+    "A2AMessage",
 ]

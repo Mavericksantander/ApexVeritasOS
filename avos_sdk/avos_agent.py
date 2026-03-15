@@ -4,6 +4,8 @@ import base64
 import hashlib
 import hmac
 import json
+import uuid
+from datetime import datetime, timezone
 from typing import Optional
 
 import requests
@@ -23,6 +25,7 @@ class AVOSAgent:
         self.capabilities = capabilities or []
         self.base_url = base_url.rstrip("/")
         self.agent_id: Optional[str] = None
+        self.avid: Optional[str] = None
         self.public_key: Optional[str] = None
         self.access_token: Optional[str] = None
         self.signing_private_key_pem = signing_private_key_pem
@@ -31,6 +34,68 @@ class AVOSAgent:
         if not self.access_token:
             return {}
         return {"Authorization": f"Bearer {self.access_token}"}
+
+    def register_signing_key(self, public_key_pem: str) -> dict:
+        """Register an ECDSA public key for A2A verification (one-time, immutable)."""
+        if not self.access_token:
+            raise RuntimeError("Fetch a token before registering signing keys")
+        payload = {"public_key_pem": public_key_pem}
+        res = requests.post(f"{self.base_url}/a2a/signing_key", headers=self._headers(), json=payload)
+        if res.status_code in (200, 201, 409):
+            return res.json()
+        res.raise_for_status()
+        return res.json()
+
+    def a2a_send(self, to_avid: str, message_type: str, payload: dict) -> dict:
+        """Send a signed A2A message (requires an ECDSA private key)."""
+        if not self.access_token or not self.avid:
+            raise RuntimeError("Register the agent and fetch a token before A2A")
+        if not self.signing_private_key_pem:
+            raise RuntimeError("signing_private_key_pem is required for A2A send")
+
+        message_id = str(uuid.uuid4())
+        sent_at = datetime.now(timezone.utc).replace(microsecond=0)
+        msg = {
+            "from_avid": self.avid,
+            "to_avid": to_avid,
+            "message_id": message_id,
+            "sent_at": sent_at.isoformat().replace("+00:00", "Z"),
+            "message_type": message_type,
+            "payload": payload,
+        }
+        canonical = json.dumps(msg, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str).encode("utf-8")
+        digest = hashlib.sha256(canonical).digest()
+
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import ec, utils
+
+        priv = serialization.load_pem_private_key(self.signing_private_key_pem.encode("utf-8"), password=None)
+        signature = priv.sign(digest, ec.ECDSA(utils.Prehashed(hashes.SHA256())))
+        signature_b64 = base64.b64encode(signature).decode("utf-8")
+
+        req = {
+            "to_avid": to_avid,
+            "message_id": message_id,
+            "sent_at": sent_at.isoformat(),
+            "message_type": message_type,
+            "payload": payload,
+            "signature": signature_b64,
+        }
+        res = requests.post(f"{self.base_url}/a2a/send", headers=self._headers(), json=req)
+        res.raise_for_status()
+        return res.json()
+
+    def a2a_inbox(self, limit: int = 50, mark_delivered: bool = True) -> dict:
+        """Fetch inbound A2A messages for this agent."""
+        if not self.access_token:
+            raise RuntimeError("Fetch a token before reading inbox")
+        res = requests.get(
+            f"{self.base_url}/a2a/inbox",
+            headers=self._headers(),
+            params={"limit": limit, "mark_delivered": str(mark_delivered).lower()},
+        )
+        res.raise_for_status()
+        return res.json()
 
     def fetch_token(self, expires_in: int = 3600) -> dict:
         if not self.agent_id or not self.public_key:
@@ -52,6 +117,7 @@ class AVOSAgent:
         res.raise_for_status()
         data = res.json()
         self.agent_id = data["agent_id"]
+        self.avid = data.get("avid")
         self.public_key = data["public_key"]
         self.access_token = data.get("access_token")
         try:
@@ -122,4 +188,3 @@ class AVOSAgent:
         )
         res.raise_for_status()
         return res.json()
-

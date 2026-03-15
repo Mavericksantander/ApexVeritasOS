@@ -6,6 +6,7 @@ from .capability import CapabilityItem
 
 
 class AgentIdentityResponse(BaseModel):
+    avid: str
     agent_id: str
     developer_id: str
     public_key: str
@@ -20,4 +21,3 @@ class ActiveAgentResponse(BaseModel):
     capabilities: list[CapabilityItem]
     reputation: float
     last_heartbeat: datetime
-

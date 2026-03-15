@@ -1,7 +1,8 @@
 from datetime import datetime
 import secrets
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import event, inspect
 from sqlalchemy.types import JSON
 from .base import Base
 
@@ -10,6 +11,7 @@ class Agent(Base):
     __tablename__ = "agents"
 
     agent_id = Column(String, primary_key=True, index=True)
+    avid = Column(String, unique=True, index=True, nullable=True)
     name = Column(String, nullable=False)
     owner_id = Column(String, nullable=False)
     capabilities = Column(JSON, default=list)
@@ -22,6 +24,17 @@ class Agent(Base):
     @staticmethod
     def generate_public_key() -> str:
         return secrets.token_urlsafe(32)
+
+
+@event.listens_for(Agent, "before_update", propagate=True)
+def _prevent_avid_mutation(mapper, connection, target) -> None:
+    state = inspect(target)
+    hist = state.attrs.avid.history
+    if hist.has_changes():
+        # Allow a one-time backfill (None -> value). Block any subsequent mutation.
+        previous_values = [v for v in hist.deleted if v not in (None, "")]
+        if previous_values:
+            raise ValueError("AVID is immutable and cannot be changed once set")
 
 
 class AgentKey(Base):
@@ -87,3 +100,31 @@ class AgentHeartbeat(Base):
     version = Column(String, nullable=True)
     status = Column(String, nullable=False, default="active")
     reported_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AgentSigningKey(Base):
+    __tablename__ = "agent_signing_keys"
+
+    agent_id = Column(String, ForeignKey("agents.agent_id"), primary_key=True)
+    public_key_pem = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class A2AMessage(Base):
+    __tablename__ = "a2a_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    from_agent_id = Column(String, ForeignKey("agents.agent_id"), nullable=False, index=True)
+    to_agent_id = Column(String, ForeignKey("agents.agent_id"), nullable=False, index=True)
+    from_avid = Column(String, nullable=False, index=True)
+    to_avid = Column(String, nullable=False, index=True)
+    message_id = Column(String, nullable=False, index=True)
+    message_type = Column(String, nullable=False)
+    sent_at = Column(DateTime, nullable=False)
+    payload = Column(Text, nullable=False)
+    payload_sha256 = Column(String, nullable=False, index=True)
+    signature = Column(Text, nullable=False)
+    verified = Column(Boolean, nullable=False, server_default="1")
+    rejected_reason = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    delivered_at = Column(DateTime, nullable=True)

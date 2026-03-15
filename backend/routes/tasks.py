@@ -76,6 +76,7 @@ def _log_task_impl(
                 "reputation_updated",
                 {
                     "agent_id": current_agent.agent_id,
+                    "avid": getattr(current_agent, "avid", None) or "",
                     "delta": delta,
                     "reputation": current_agent.reputation_score,
                     "reason": rep_entry.reason,
@@ -107,6 +108,7 @@ def _log_task_impl(
         "task_completed",
         {
             "agent_id": current_agent.agent_id,
+            "avid": getattr(current_agent, "avid", None) or "",
             "task_id": task.id,
             "result_status": payload.result_status,
             "reputation": current_agent.reputation_score,
@@ -116,6 +118,7 @@ def _log_task_impl(
         "reputation_updated",
         {
             "agent_id": current_agent.agent_id,
+            "avid": getattr(current_agent, "avid", None) or "",
             "delta": delta,
             "reputation": current_agent.reputation_score,
             "reason": rep_entry.reason,

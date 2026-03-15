@@ -44,6 +44,7 @@ def update_reputation(
         "reputation_updated",
         {
             "agent_id": current_agent.agent_id,
+            "avid": getattr(current_agent, "avid", None) or "",
             "delta": payload.delta,
             "reputation": current_agent.reputation_score,
             "reason": payload.reason,

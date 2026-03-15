@@ -13,6 +13,8 @@ from ..database import get_db
 from ..models import Agent, AgentKey
 from ..core.events import broker
 from ..schemas.capability import capability_names, normalize_capabilities
+from ..core.avid import generate_avid
+from ..core.constitution import constitution_hash
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -28,6 +30,7 @@ class ExternalRegisterRequest(BaseModel):
 
 
 class ExternalRegisterResponse(BaseModel):
+    avid: str
     agent_id: str
     public_key: str
     access_token: str
@@ -53,12 +56,26 @@ def external_register_agent(
             detail="Invalid invite code",
         )
     public_key_value = secrets.token_urlsafe(32)
+    now = datetime.utcnow()
+    normalized_caps = normalize_capabilities(payload.capabilities)
+    avid = generate_avid(
+        public_key_value,
+        {
+            "agent_name": payload.bot_name,
+            "owner_id": payload.developer_id,
+            "capabilities": normalized_caps,
+        },
+        constitution_hash=constitution_hash(),
+        created_at=now,
+    )
     agent = Agent(
         agent_id=str(uuid4()),
+        avid=avid,
         name=payload.bot_name,
         owner_id=payload.developer_id,
-        capabilities=normalize_capabilities(payload.capabilities),
+        capabilities=normalized_caps,
         public_key=pwd_context.hash(public_key_value),
+        registered_at=now,
     )
     db.add(agent)
     db.add(AgentKey(agent_id=agent.agent_id, public_key=public_key_value))
@@ -72,11 +89,13 @@ def external_register_agent(
         "agent_registered",
         {
             "agent_id": agent.agent_id,
+            "avid": agent.avid,
             "developer_id": agent.owner_id,
             "capabilities": capability_names(agent.capabilities),
         },
     )
     return ExternalRegisterResponse(
+        avid=agent.avid or "",
         agent_id=agent.agent_id,
         public_key=public_key_value,
         access_token=token,

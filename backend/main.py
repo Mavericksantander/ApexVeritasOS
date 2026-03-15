@@ -12,9 +12,20 @@ from slowapi.middleware import SlowAPIMiddleware
 from pathlib import Path
 from uuid import uuid4
 
+#          /\\
+#         /  \\
+#        /    \\
+#       /      \\
+#      /  APEX  \\
+#     / VERITAS  \\
+#    /____________\\
+# Be bold and mighty forces will come to your aid.
+
 from .database import init_db
 from .routes import agents as agent_routes
 from .routes import authorization as auth_routes
+from .routes import constitution as constitution_routes
+from .routes import a2a as a2a_routes
 from .routes import events as event_routes
 from .routes import external_onboarding as onboarding_routes
 from .routes import heartbeat as heartbeat_routes
@@ -115,6 +126,8 @@ app.include_router(metrics_routes.router)
 app.include_router(search_routes.router)
 app.include_router(event_routes.router)
 app.include_router(policy_routes.router)
+app.include_router(constitution_routes.router)
+app.include_router(a2a_routes.router)
 
 init_db()
 

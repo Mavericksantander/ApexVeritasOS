@@ -1,3 +1,6 @@
+import logging
+from pathlib import Path
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -12,7 +15,21 @@ SessionLocal = sessionmaker(engine, future=True, expire_on_commit=False)
 
 
 def init_db():
-    Base.metadata.create_all(bind=engine)
+    # Prefer Alembic migrations when available so schema changes (new columns/tables) are applied safely.
+    try:
+        from alembic import command
+        from alembic.config import Config
+
+        alembic_ini = Path(__file__).resolve().parents[1] / "alembic.ini"
+        if alembic_ini.exists():
+            cfg = Config(str(alembic_ini))
+            command.upgrade(cfg, "head")
+        else:
+            Base.metadata.create_all(bind=engine)
+    except Exception as exc:
+        logging.warning("init_db: alembic upgrade failed; falling back to create_all: %s", exc)
+        Base.metadata.create_all(bind=engine)
+
     with SessionLocal() as db:
         existing = db.query(Policy).limit(1).first()
         if not existing:
