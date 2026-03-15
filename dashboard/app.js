@@ -1,4 +1,7 @@
-const BACKEND_URL = "http://127.0.0.1:8000"; 
+const BACKEND_URL =
+  window.location && window.location.origin && window.location.origin !== "null"
+    ? window.location.origin
+    : "http://127.0.0.1:8000";
 
 const setStatus = (elementId, text) => {
   const el = document.getElementById(elementId);

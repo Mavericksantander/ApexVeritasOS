@@ -5,8 +5,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.middleware import SlowAPIMiddleware
+from pathlib import Path
 from uuid import uuid4
 
 from .database import init_db
@@ -30,6 +33,20 @@ logging.basicConfig(level=logging.DEBUG if settings.DEBUG else logging.INFO)
 logger = configure_logging()
 
 app = FastAPI(title="ApexVeritasOS Governance API")
+
+_DASHBOARD_DIR = Path(__file__).resolve().parents[1] / "dashboard"
+
+if _DASHBOARD_DIR.exists():
+    app.mount("/dashboard", StaticFiles(directory=str(_DASHBOARD_DIR), html=True), name="dashboard")
+
+
+@app.get("/", include_in_schema=False)
+def landing_page():
+    # Keep one canonical landing: /dashboard/ (StaticFiles html=True serves dashboard/index.html).
+    if _DASHBOARD_DIR.exists():
+        return RedirectResponse(url="/dashboard/", status_code=307)
+    return JSONResponse({"detail": "Dashboard directory not found. Try /docs."}, status_code=404)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,

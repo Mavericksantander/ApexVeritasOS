@@ -1,199 +1,648 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ApexVeritasOS Dashboard</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --bg: #ffffff;
-      --text: #000000;
-      --muted: #6b7280;
-      --border: #d1d5db;
-      --header-bg: #f3f4f6;
-      --hover: #f9fafb;
-    }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ApexVeritasOS (AVOS)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #0b0f19;
+        background: #ffffff;
+      }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+      * {
+        box-sizing: border-box;
+      }
 
-    body {
-      font-family: 'Inter', system-ui, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      padding: 2rem 1.5rem;
-      line-height: 1.5;
-    }
+      body {
+        margin: 0;
+        background: #ffffff;
+        color: #0b0f19;
+      }
 
-    .container {
-      max-width: 1400px;
-      margin: 0 auto;
-    }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
 
-    h1 {
-      font-size: 1.875rem;
-      font-weight: 700;
-      margin-bottom: 2rem;
-    }
+      .container {
+        width: min(1120px, 100%);
+        margin: 0 auto;
+        padding: 1.75rem 1.25rem 4rem;
+      }
 
-    .section {
-      margin-bottom: 3rem;
-    }
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #eef2f7;
+      }
 
-    .section h2 {
-      font-size: 1.25rem;
-      font-weight: 600;
-      margin-bottom: 1rem;
-      color: var(--text);
-    }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
 
-    .status {
-      font-size: 0.875rem;
-      color: var(--muted);
-      margin-bottom: 0.75rem;
-    }
+      .nav {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        color: #6b7280;
+        font-weight: 500;
+        font-size: 0.95rem;
+      }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.95rem;
-    }
+      .nav a {
+        padding: 0.4rem 0.5rem;
+        border-radius: 0.5rem;
+      }
 
-    th, td {
-      padding: 0.875rem 1rem;
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-    }
+      .nav a:hover {
+        background: #f3f4f6;
+        color: #0b0f19;
+      }
 
-    th {
-      background: var(--header-bg);
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-      color: var(--text);
-    }
+      .hero {
+        padding: 3.5rem 0 2.25rem;
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 2rem;
+        border-bottom: 1px solid #eef2f7;
+      }
 
-    tr:hover {
-      background: var(--hover);
-    }
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #6b7280;
+      }
 
-    .summary {
-      font-size: 0.95rem;
-      color: var(--muted);
-      margin-bottom: 1rem;
-    }
+      .eyebrow .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 99px;
+        background: #0b0f19;
+      }
 
-    @media (max-width: 768px) {
-      body { padding: 1.25rem 1rem; }
-      h1 { font-size: 1.5rem; }
-      table { font-size: 0.875rem; }
-      th, td { padding: 0.75rem 0.875rem; }
-    }
+      h1 {
+        margin: 0.75rem 0 0.9rem;
+        font-size: 3.1rem;
+        line-height: 1.05;
+        letter-spacing: -0.04em;
+      }
 
-    /* Para scroll horizontal en mobile si hay muchas columnas */
-    .table-wrapper {
-      overflow-x: auto;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>ApexVeritasOS Dashboard</h1>
+      .subhead {
+        margin: 0;
+        color: #4b5563;
+        font-size: 1.05rem;
+        line-height: 1.6;
+      }
 
-    <div class="section">
-      <h2>Agents Overview</h2>
-      <div id="agents-status" class="status">Loading agent statistics…</div>
-      <div id="active-count" class="summary"></div>
-      <div class="table-wrapper">
-        <table id="active-table">
-          <thead>
-            <tr>
-              <th>Agent ID</th>
-              <th>Public Key</th>
-              <th>Reputation Score</th>
-              <th>Tasks Completed</th>
-              <th>Last Active</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <!-- Filas dinámicas con app.js -->
-          </tbody>
-        </table>
+      .cta {
+        margin-top: 1.25rem;
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.75rem 0.95rem;
+        border-radius: 0.85rem;
+        border: 1px solid #e5e7eb;
+        font-weight: 600;
+        font-size: 0.95rem;
+        background: #ffffff;
+      }
+
+      .btn.primary {
+        background: #0b0f19;
+        color: #ffffff;
+        border-color: #0b0f19;
+      }
+
+      .btn:hover {
+        border-color: #cbd5e1;
+      }
+
+      .btn.primary:hover {
+        background: #111827;
+        border-color: #111827;
+      }
+
+      .hero-card {
+        border: 1px solid #e5e7eb;
+        border-radius: 1rem;
+        padding: 1rem;
+        background: #ffffff;
+      }
+
+      .hero-card h2 {
+        margin: 0;
+        font-size: 0.95rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: #6b7280;
+      }
+
+      .hero-card ul {
+        margin: 0.85rem 0 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 0.6rem;
+      }
+
+      .hero-card li {
+        padding: 0.7rem 0.75rem;
+        background: #f9fafb;
+        border: 1px solid #f3f4f6;
+        border-radius: 0.75rem;
+        font-size: 0.95rem;
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+
+      .hero-card li span {
+        color: #6b7280;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+      }
+
+      .section {
+        padding: 2.25rem 0;
+        border-bottom: 1px solid #eef2f7;
+      }
+
+      .section-title {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1rem;
+      }
+
+      .section-title h3 {
+        margin: 0;
+        font-size: 1.1rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #6b7280;
+      }
+
+      .section-title p {
+        margin: 0;
+        color: #6b7280;
+        font-size: 0.95rem;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 1rem;
+      }
+
+      .feature {
+        grid-column: span 6;
+        border: 1px solid #e5e7eb;
+        border-radius: 1rem;
+        padding: 1rem;
+        background: #ffffff;
+      }
+
+      .feature h4 {
+        margin: 0 0 0.35rem;
+        font-size: 1.05rem;
+        letter-spacing: -0.02em;
+      }
+
+      .feature p {
+        margin: 0;
+        color: #4b5563;
+        line-height: 1.65;
+        font-size: 0.98rem;
+      }
+
+      .feature .meta {
+        margin-top: 0.85rem;
+        color: #6b7280;
+        font-size: 0.9rem;
+        border-top: 1px solid #eef2f7;
+        padding-top: 0.75rem;
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+
+      .feature code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 0.9rem;
+      }
+
+      .how {
+        grid-column: span 5;
+        border: 1px solid #e5e7eb;
+        border-radius: 1rem;
+        padding: 1rem;
+        background: #ffffff;
+      }
+
+      .how h4 {
+        margin: 0;
+        font-size: 1.05rem;
+      }
+
+      .steps {
+        margin: 0.85rem 0 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 0.6rem;
+      }
+
+      .steps li {
+        display: grid;
+        grid-template-columns: 36px 1fr;
+        gap: 0.75rem;
+        align-items: start;
+        padding: 0.7rem 0.75rem;
+        background: #f9fafb;
+        border: 1px solid #f3f4f6;
+        border-radius: 0.75rem;
+      }
+
+      .steps .n {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        background: #ffffff;
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        color: #111827;
+        font-size: 0.9rem;
+      }
+
+      .steps .t {
+        font-weight: 600;
+      }
+
+      .steps .d {
+        margin-top: 0.15rem;
+        color: #4b5563;
+        font-size: 0.95rem;
+        line-height: 1.55;
+      }
+
+      .snippet {
+        grid-column: span 7;
+        border: 1px solid #e5e7eb;
+        border-radius: 1rem;
+        overflow: hidden;
+        background: #ffffff;
+      }
+
+      .snippet header {
+        padding: 0.75rem 0.9rem;
+        border-bottom: 1px solid #eef2f7;
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: center;
+        color: #6b7280;
+        font-size: 0.9rem;
+      }
+
+      pre {
+        margin: 0;
+        padding: 0.95rem;
+        background: #0b0f19;
+        color: #e5e7eb;
+        overflow: auto;
+        font-size: 0.9rem;
+        line-height: 1.55;
+      }
+
+      .flow {
+        border: 1px solid #e5e7eb;
+        border-radius: 1rem;
+        background: #ffffff;
+        overflow: hidden;
+      }
+
+      .flow header {
+        padding: 0.85rem 1rem;
+        border-bottom: 1px solid #eef2f7;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 1rem;
+        background: #f9fafb;
+      }
+
+      .flow header h4 {
+        margin: 0;
+        font-size: 1.05rem;
+        letter-spacing: -0.02em;
+      }
+
+      .flow header p {
+        margin: 0;
+        color: #6b7280;
+        font-size: 0.95rem;
+      }
+
+      .flow .body {
+        padding: 1rem;
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 1rem;
+      }
+
+      .flow .lane {
+        grid-column: span 6;
+        border: 1px solid #e5e7eb;
+        border-radius: 1rem;
+        padding: 1rem;
+        background: #ffffff;
+      }
+
+      .flow .lane h5 {
+        margin: 0 0 0.5rem;
+        font-size: 0.95rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #6b7280;
+      }
+
+      .flow .lane ol {
+        margin: 0;
+        padding-left: 1.15rem;
+        display: grid;
+        gap: 0.45rem;
+        color: #111827;
+        font-size: 0.98rem;
+        line-height: 1.55;
+      }
+
+      .flow .lane li span {
+        color: #6b7280;
+        font-weight: 500;
+      }
+
+      .footer {
+        padding: 2rem 0 0.5rem;
+        color: #6b7280;
+        font-size: 0.95rem;
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+
+      .footer a {
+        color: #111827;
+        font-weight: 600;
+      }
+
+      @media (max-width: 900px) {
+        .hero {
+          grid-template-columns: 1fr;
+        }
+        .feature {
+          grid-column: span 12;
+        }
+        .how {
+          grid-column: span 12;
+        }
+        .snippet {
+          grid-column: span 12;
+        }
+        .flow .lane {
+          grid-column: span 12;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .container {
+          padding: 1.25rem 1rem 3rem;
+        }
+        h1 {
+          font-size: 2.3rem;
+        }
+        .nav {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="topbar">
+        <a class="brand" href="#top">ApexVeritasOS</a>
+        <nav class="nav" aria-label="Primary">
+          <a href="#platform">Platform</a>
+          <a href="#flow">Flow</a>
+          <a href="/docs">API Docs</a>
+          <a href="/dashboard/dashboard.html">Dashboard</a>
+        </nav>
+        <a class="btn primary" href="/dashboard/dashboard.html">Open Dashboard</a>
+      </div>
+
+      <section class="hero" id="top">
+        <div>
+          <div class="eyebrow"><span class="dot" aria-hidden="true"></span> AI Agent Governance MVP</div>
+          <h1>The governance layer between agents and the world.</h1>
+          <p class="subhead">
+            AVOS gives autonomous agents a real identity, auditable logs, a safety gate for risky actions, and a
+            reputation signal humans can trust. Built for developer adoption: local-first, simple API, and an SDK.
+          </p>
+          <div class="cta">
+            <a class="btn primary" href="/docs">Explore the API</a>
+            <a class="btn" href="/dashboard/dashboard.html">View dashboard</a>
+            <a class="btn" href="/docs">External onboarding</a>
+          </div>
+        </div>
+
+        <aside class="hero-card" aria-label="Quick facts">
+          <h2>What you get</h2>
+          <ul>
+            <li>
+              Identity
+              <span>UUID + JWT</span>
+            </li>
+            <li>
+              Safety gate
+              <span>/authorize_action</span>
+            </li>
+            <li>
+              Reputation
+              <span>+0.5 / -1.0</span>
+            </li>
+            <li>
+              Heartbeat
+              <span>active agents</span>
+            </li>
+          </ul>
+        </aside>
+      </section>
+
+      <section class="section" id="platform">
+        <div class="section-title">
+          <h3>Platform</h3>
+          <p>Identity, authorization, and observability for autonomous agents.</p>
+        </div>
+        <div class="grid">
+          <div class="feature">
+            <h4>Agent identity</h4>
+            <p>
+              Agents register once, receive a stable UUID, and operate under a session token. Every action can be traced
+              back to the agent that requested it.
+            </p>
+            <div class="meta">
+              <span>Endpoint</span>
+              <code>POST /register_agent</code>
+            </div>
+          </div>
+          <div class="feature">
+            <h4>Action firewall</h4>
+            <p>
+              Before executing risky actions, agents ask AVOS for a decision. Denied and verification-required actions
+              are logged for later review.
+            </p>
+            <div class="meta">
+              <span>Endpoint</span>
+              <code>POST /authorize_action</code>
+            </div>
+          </div>
+          <div class="feature">
+            <h4>Reputation signal</h4>
+            <p>
+              Track outcomes over time. Successful tasks increase reputation, failures reduce it, and humans can use the
+              score as a quick trust heuristic.
+            </p>
+            <div class="meta">
+              <span>API</span>
+              <code>POST /log_task</code>
+            </div>
+          </div>
+          <div class="feature">
+            <h4>Operational heartbeat</h4>
+            <p>
+              Agents report their status and version. AVOS surfaces which agents are active and correlates activity with
+              tasks and authorization decisions.
+            </p>
+            <div class="meta">
+              <span>Endpoint</span>
+              <code>POST /agents/{id}/heartbeat</code>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="flow">
+        <div class="section-title">
+          <h3>Flow</h3>
+          <p>The end-to-end loop for agents and humans.</p>
+        </div>
+        <div class="flow" aria-label="End-to-end product flow">
+          <header>
+            <h4>The AVOS loop</h4>
+            <p>Identity → heartbeat → tasks → authorization → reputation → visibility</p>
+          </header>
+          <div class="body">
+            <div class="lane">
+              <h5>Agent side</h5>
+              <ol>
+                <li>Onboard once. <span>Get <code>agent_id</code> and a session token.</span></li>
+                <li>Send heartbeat. <span>Report model, version, status.</span></li>
+                <li>Log tasks. <span>Success: +0.5 reputation, failure: -1.0.</span></li>
+                <li>Before risky actions, ask AVOS. <span><code>/authorize_action</code> returns allow/deny/verify.</span></li>
+                <li>Execute only if allowed. <span>Denied actions are blocked and recorded.</span></li>
+              </ol>
+            </div>
+            <div class="lane">
+              <h5>Human side</h5>
+              <ol>
+                <li>Discover agents. <span>Use public directory + search by capability.</span></li>
+                <li>Observe activity. <span>See who is active via heartbeat.</span></li>
+                <li>Audit decisions. <span>Review blocked actions and reasons.</span></li>
+                <li>Trust signal. <span>Reputation + task history inform delegation.</span></li>
+                <li>Iterate policies. <span>Tighten or expand guardrails as you learn.</span></li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid" style="margin-top: 1rem;">
+          <div class="snippet" aria-label="Example API calls">
+            <header>
+              <span>Example: onboarding + authorization</span>
+              <span>localhost / ngrok</span>
+            </header>
+            <pre><code>curl -s http://127.0.0.1:8000/external/register_agent \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"developer_id\":\"demo\",\"bot_name\":\"openclaw_scout\",\"capabilities\":[\"web_scraping\"],\"invite_code\":\"AVOS-OPEN-2026\"}'\n\ncurl -s http://127.0.0.1:8000/agents/&lt;UUID&gt;/heartbeat \\\n  -H 'Authorization: Bearer &lt;JWT&gt;' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"model\":\"gpt-4\",\"version\":\"0.1.0\",\"status\":\"active\"}'\n\ncurl -s http://127.0.0.1:8000/authorize_action \\\n  -H 'Authorization: Bearer &lt;JWT&gt;' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"agent_id\":\"&lt;UUID&gt;\",\"action_type\":\"execute_shell_command\",\"action_payload\":{\"command\":\"rm -rf /\"}}'</code></pre>
+          </div>
+          <div class="how">
+            <h4>Fast local demo</h4>
+            <ul class="steps">
+              <li>
+                <div class="n">1</div>
+                <div>
+                  <div class="t">Run the API</div>
+                  <div class="d">Start FastAPI, then open <code>/docs</code> and <code>/dashboard/dashboard.html</code>.</div>
+                </div>
+              </li>
+              <li>
+                <div class="n">2</div>
+                <div>
+                  <div class="t">Simulate agents</div>
+                  <div class="d">Use <code>scripts/simulate_agents.py</code> to generate tasks and blocked actions.</div>
+                </div>
+              </li>
+              <li>
+                <div class="n">3</div>
+                <div>
+                  <div class="t">Watch governance</div>
+                  <div class="d">Dashboard updates as reputation and authorization logs change.</div>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <div class="footer">
+        <div>AVOS MVP · FastAPI · SQLAlchemy · JWT · Dashboard</div>
+        <div>
+          <a href="/docs">Docs</a>
+          ·
+          <a href="/dashboard/dashboard.html">Dashboard</a>
+        </div>
       </div>
     </div>
-
-    <div class="section">
-      <h2>Recent Tasks</h2>
-      <div id="tasks-status" class="status">Fetching recent tasks…</div>
-      <div class="table-wrapper">
-        <table id="tasks-table">
-          <thead>
-            <tr>
-              <th>Task ID</th>
-              <th>Agent</th>
-              <th>Description</th>
-              <th>Status</th>
-              <th>Duration</th>
-              <th>Timestamp</th>
-            </tr>
-          </thead>
-          <tbody>
-            <!-- Filas dinámicas -->
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="section">
-      <h2>Top Agents by Reputation</h2>
-      <div id="top-status" class="status">Loading rankings…</div>
-      <div class="table-wrapper">
-        <table id="top-table">
-          <thead>
-            <tr>
-              <th>Rank</th>
-              <th>Agent ID</th>
-              <th>Reputation</th>
-              <th>Tasks Success</th>
-            </tr>
-          </thead>
-          <tbody>
-            <!-- Filas dinámicas -->
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="section">
-      <h2>Blocked Actions (Firewall Logs)</h2>
-      <div id="blocked-status" class="status">Monitoring blocked commands…</div>
-      <div class="table-wrapper">
-        <table id="blocked-table">
-          <thead>
-            <tr>
-              <th>Timestamp</th>
-              <th>Agent</th>
-              <th>Command</th>
-              <th>Reason</th>
-              <th>Severity</th>
-            </tr>
-          </thead>
-          <tbody>
-            <!-- Filas dinámicas -->
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <script src="app.js"></script>
-</body>
+  </body>
 </html>

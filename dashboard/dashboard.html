@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ApexVeritasOS Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #000000;
+      --muted: #6b7280;
+      --border: #d1d5db;
+      --header-bg: #f3f4f6;
+      --hover: #f9fafb;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem 1.5rem;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 1.875rem;
+      font-weight: 700;
+      margin-bottom: 2rem;
+    }
+
+    .section {
+      margin-bottom: 3rem;
+    }
+
+    .section h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: var(--text);
+    }
+
+    .status {
+      font-size: 0.875rem;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+    }
+
+    th, td {
+      padding: 0.875rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      background: var(--header-bg);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: var(--text);
+    }
+
+    tr:hover {
+      background: var(--hover);
+    }
+
+    .summary {
+      font-size: 0.95rem;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+
+    @media (max-width: 768px) {
+      body { padding: 1.25rem 1rem; }
+      h1 { font-size: 1.5rem; }
+      table { font-size: 0.875rem; }
+      th, td { padding: 0.75rem 0.875rem; }
+    }
+
+    /* Para scroll horizontal en mobile si hay muchas columnas */
+    .table-wrapper {
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>ApexVeritasOS Dashboard</h1>
+
+    <div class="section">
+      <h2>Agents Overview</h2>
+      <div id="agents-status" class="status">Loading agent statistics…</div>
+      <div id="active-count" class="summary"></div>
+      <div class="table-wrapper">
+        <table id="active-table">
+          <thead>
+            <tr>
+              <th>Agent ID</th>
+              <th>Public Key</th>
+              <th>Reputation Score</th>
+              <th>Tasks Completed</th>
+              <th>Last Active</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Filas dinámicas con app.js -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Recent Tasks</h2>
+      <div id="tasks-status" class="status">Fetching recent tasks…</div>
+      <div class="table-wrapper">
+        <table id="tasks-table">
+          <thead>
+            <tr>
+              <th>Task ID</th>
+              <th>Agent</th>
+              <th>Description</th>
+              <th>Status</th>
+              <th>Duration</th>
+              <th>Timestamp</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Filas dinámicas -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Top Agents by Reputation</h2>
+      <div id="top-status" class="status">Loading rankings…</div>
+      <div class="table-wrapper">
+        <table id="top-table">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Agent ID</th>
+              <th>Reputation</th>
+              <th>Tasks Success</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Filas dinámicas -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Blocked Actions (Firewall Logs)</h2>
+      <div id="blocked-status" class="status">Monitoring blocked commands…</div>
+      <div class="table-wrapper">
+        <table id="blocked-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Agent</th>
+              <th>Command</th>
+              <th>Reason</th>
+              <th>Severity</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Filas dinámicas -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
