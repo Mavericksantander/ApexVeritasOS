@@ -66,6 +66,9 @@ def init_db():
                     logging.warning("init_db: sqlite auth_logs mismatch; recreating tables (dev/test).")
                     Base.metadata.drop_all(bind=engine)
                     Base.metadata.create_all(bind=engine)
+            if insp.has_table("agent_attestations"):
+                # ok, no additional checks
+                pass
     except Exception as exc:
         logging.warning("init_db: schema check failed: %s", exc)
 

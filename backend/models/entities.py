@@ -155,3 +155,17 @@ class A2ASession(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     expires_at = Column(DateTime, nullable=False, index=True)
     confirmed_at = Column(DateTime, nullable=True)
+
+
+class AgentAttestation(Base):
+    __tablename__ = "agent_attestations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    agent_id = Column(String, ForeignKey("agents.agent_id"), nullable=False, index=True)
+    avid = Column(String, nullable=False, index=True)
+    issuer = Column(String, nullable=False, index=True)  # e.g., org or registry issuer id
+    claim_type = Column(String, nullable=False, index=True)  # organization | model | constitution | etc.
+    claim_value = Column(JSON, nullable=False)
+    signature = Column(Text, nullable=False)  # issuer signature over canonical claim
+    verified = Column(Boolean, nullable=False, server_default="1")
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)

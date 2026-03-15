@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     ENVIRONMENT: str = "development"
     CORS_ORIGINS: list[str] = ["*"]
+    REGISTRY_ISSUER_KEYS: str = ""
 
     model_config = ConfigDict(env_file=Path(".env"), env_file_encoding="utf-8")
 

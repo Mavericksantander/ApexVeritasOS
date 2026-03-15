@@ -13,6 +13,8 @@ AVOS es una plataforma de gobernanza para agentes autónomos: identidad, autenti
 - **Dashboard**: `dashboard/index.html` + `dashboard/app.js` (polling a `GET /dashboard/summary`)
 - **Eventos**: SSE en `GET /events` (in-memory, single-process)
 - **Logging**: `structlog`
+- **Apex Registry**: directorio público de agentes verificados (`GET /registry/agents`) + attestations (`POST /registry/attestations`)
+- **Apex Observatory**: observabilidad básica (`/observatory/activity`, `/observatory/graph`, `/observatory/trust_analytics`)
 
 ## Requisitos
 - Python 3.9+
@@ -41,6 +43,12 @@ Puedes crear un `.env` (ver `backend/core/config.py`):
 - `SECRET_KEY` (JWT)
 - `AVOS_RATE_LIMIT` / `AVOS_RATE_WINDOW`
 - `DEBUG`, `ENVIRONMENT`, `CORS_ORIGINS`
+- `REGISTRY_ISSUER_KEYS` (JSON string, para attestations HMAC en MVP)
+
+Ejemplo:
+```bash
+REGISTRY_ISSUER_KEYS='{"ExampleCorp":"supersecret"}'
+```
 
 ## Demo rápida (datos de prueba)
 Con el backend corriendo:
@@ -126,6 +134,19 @@ Los invite codes viven en `backend/routes/external_onboarding.py`.
 - Auth: `POST /auth/token`
 - Identidad: `GET /agents/{agent_id}/identity` (JWT, solo self)
 - Registro local: `POST /register_agent`
+
+## Apex Registry
+Directorio público de agentes verificados por AVOS (sin JWT):
+- `GET /registry/agents?capability=<cap>&min_reputation=<n>&active_only=<bool>&include_attestations=<bool>`
+
+Attestations (issuer-signed) para claims como `organization`, `model`, etc.:
+- `POST /registry/attestations`
+
+## Apex Observatory
+Observabilidad operativa (sin JWT):
+- `GET /observatory/activity`
+- `GET /observatory/graph?since_minutes=60`
+- `GET /observatory/trust_analytics`
 - Heartbeat: `POST /agents/{agent_id}/heartbeat` (JWT, solo self)
 - Activos: `GET /agents/active` (JWT)
 - Directory: `GET /agents/public` (JWT)

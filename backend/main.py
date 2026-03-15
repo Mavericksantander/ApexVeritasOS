@@ -30,8 +30,10 @@ from .routes import events as event_routes
 from .routes import external_onboarding as onboarding_routes
 from .routes import heartbeat as heartbeat_routes
 from .routes import metrics as metrics_routes
+from .routes import observatory as observatory_routes
 from .routes import policies as policy_routes
 from .routes import reputation as reputation_routes
+from .routes import registry as registry_routes
 from .routes import search as search_routes
 from .routes import tasks as task_routes
 from .core.config import settings
@@ -128,6 +130,8 @@ app.include_router(event_routes.router)
 app.include_router(policy_routes.router)
 app.include_router(constitution_routes.router)
 app.include_router(a2a_routes.router)
+app.include_router(registry_routes.router)
+app.include_router(observatory_routes.router)
 
 init_db()
 
